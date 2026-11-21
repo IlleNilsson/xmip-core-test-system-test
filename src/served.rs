@@ -135,7 +135,11 @@ impl Served {
         let real = declared
             .iter()
             .map(|(name, _)| {
-                RealNode::local(name, &endpoint(cluster, name), roster.capability(name))
+                RealNode::local(
+                    (cluster, name),
+                    &endpoint(cluster, name),
+                    roster.capability(name),
+                )
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok((

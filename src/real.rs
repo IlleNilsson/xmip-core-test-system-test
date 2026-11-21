@@ -83,7 +83,7 @@ pub fn sorted(cluster: &str, roster: Roster) -> Result<Sorted, String> {
 /// REFUSED, where the membership could not be read, which a roster always
 /// is.
 pub fn gathered(real: &[RealNode], roster: &Roster, root: &str) -> Result<Gatherer, String> {
-    let membership = Read { real, roster, root };
+    let membership = Read { real, roster };
     Gatherer::start(root, None, &membership, &|member| membership.reach(member))
         .map_err(|error| format!("REFUSED: the nodes the run reads: {error}"))
 }
@@ -92,7 +92,6 @@ pub fn gathered(real: &[RealNode], roster: &Roster, root: &str) -> Result<Gather
 struct Read<'a> {
     real: &'a [RealNode],
     roster: &'a Roster,
-    root: &'a str,
 }
 
 impl Membership for Read<'_> {
@@ -108,7 +107,7 @@ impl Membership for Read<'_> {
                 .and_then(|one| one.storage_place)
                 .and_then(|place| usize::try_from(place).ok());
             Member {
-                node: self.scope(node),
+                node: node.scope.clone(),
                 address: None,
                 capability: node.capability.clone(),
                 operate: Some(node.remote.address().to_string()),
@@ -121,19 +120,10 @@ impl Membership for Read<'_> {
 }
 
 impl Read<'_> {
-    /// The scope `node` declared itself at.
-    fn scope(&self, node: &RealNode) -> String {
-        format!("{}/node/{}", self.root, node.name)
-    }
-
     /// How the roll reaches `member`: through the surface it found the node
     /// through, said *real, at* where it answered.
     fn reach(&self, member: &Member) -> Reach {
-        match self
-            .real
-            .iter()
-            .find(|node| self.scope(node) == member.node)
-        {
+        match self.real.iter().find(|node| node.scope == member.node) {
             Some(node) => Reach {
                 at: format!("real, at {}", node.address),
                 through: Ok(Arc::clone(&node.remote) as Arc<dyn Follow>),
@@ -150,6 +140,9 @@ impl Read<'_> {
 pub struct RealNode {
     /// Its name, as typed and as it declared itself.
     pub name: String,
+    /// The scope it declared itself at, `xmip:///<cluster>/node/<name>`:
+    /// what a node-scoped act names it by, a secret set on it among them.
+    pub scope: String,
     /// Where it was reached: its name and its operate port.
     pub address: String,
     /// What it declared it can do.
@@ -158,16 +151,21 @@ pub struct RealNode {
 }
 
 impl RealNode {
-    /// The node `name` the run started on this computer (`served`), read at
-    /// its local endpoint `endpoint`, which the operating system proves the
-    /// rig to, declaring `capability`.
+    /// The node `name` of `cluster` the run started on this computer
+    /// (`served`), read at its local endpoint `endpoint`, which the
+    /// operating system proves the rig to, declaring `capability`.
     ///
     /// # Errors
     ///
     /// An endpoint that is no name in the endpoints' folder.
-    pub fn local(name: &str, endpoint: &str, capability: Capability) -> Result<Self, String> {
+    pub fn local(
+        (cluster, name): (&str, &str),
+        endpoint: &str,
+        capability: Capability,
+    ) -> Result<Self, String> {
         Ok(Self {
             name: name.to_string(),
+            scope: scope_of(cluster, name),
             address: format!("the local endpoint {endpoint}"),
             capability,
             remote: Arc::new(Remote::local(
@@ -188,9 +186,12 @@ impl RealNode {
     /// REFUSED, in words: the node did not answer, or did not take it.
     pub fn set_password(&self, name: &str, value: &str) -> Result<(), String> {
         let refused = |why: &str| format!("REFUSED: the secret '{name}' on {}: {why}", self.name);
+        // Named by its scope, as the node keeps its Storage by it: the bare
+        // name was refused, "no node at EX1 runs in this process"
+        // (2026-11-21, the first real node driven).
         match self
             .remote
-            .set_secret(0, &self.name, (name, "password", value))
+            .set_secret(0, &self.scope, (name, "password", value))
         {
             Ok((Outcome::Taken, _)) => Ok(()),
             Ok((_, said)) => Err(refused(&said)),
@@ -231,6 +232,7 @@ pub fn found(
         let capability = declared(cluster, name, &address, &remote)?;
         real.push(RealNode {
             name: name.clone(),
+            scope: scope_of(cluster, name),
             address,
             capability,
             remote: Arc::new(remote),
@@ -293,6 +295,14 @@ fn answering(name: &str, address: &str, folder: Option<&Path>) -> Result<Remote,
         .map_err(|problem| format!("REFUSED: {name} resolves, at {address}: {problem}"))
 }
 
+/// The scope the node `name` of `cluster` declares itself at (ADR-0053).
+fn scope_of(cluster: &str, name: &str) -> String {
+    format!(
+        "{}/node/{name}",
+        runtime::running::publication::cluster_location(cluster)
+    )
+}
+
 /// What the rig's surfaces tell time by: it is no node, so the operating
 /// system's clock (ADR-0068, amendment 2026-11-16).
 fn rigs_clock() -> Arc<dyn xcore::Clock> {
@@ -320,7 +330,7 @@ fn declared(
 ) -> Result<Capability, String> {
     let refused = |what: String| format!("REFUSED: {name} resolves, at {address}, and {what}");
     let publication = publication(name, address, remote)?;
-    let scope = format!("xmip:///{cluster}/node/{name}");
+    let scope = scope_of(cluster, name);
     if publication.node != scope {
         return Err(refused(format!(
             "answers as {}, not as {scope}",
