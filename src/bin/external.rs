@@ -14,20 +14,31 @@
 
 use std::process::ExitCode;
 
-use xmip_core_test_essentials::external::program::{self, Does, Program};
+use xaudit::program_audit::ProgramAudit;
+use xmip_core_test_essentials::external::command::{Does, Program};
+use xmip_core_test_essentials::external::program;
+use xmip_core_test_essentials::external::serving;
 use xmip_core_test_essentials::{cluster_root, image, process_audit};
 
 const USAGE: &str = "\
 usage: xmip-essentials-external --name TX1 --sender
        xmip-essentials-external --name RX1 --receiver --into <folder>
                                 [--port <Send Port> <folder>]...
+       xmip-essentials-external --name TX1 --serve --configuration <folder>
+       xmip-essentials-external --name TX1 --install --configuration <folder>
+       xmip-essentials-external --configuration <folder> --listening
 
 One far end outside the cluster, started by the roll for each the
 Essentials' configuration/external.xmip names. A sender reads, a line each,
-a file, a Receive Location's folder and a name, tab-separated, drops the file
-there under the name and answers `dropped` or `failed`. A receiver moves each
-whole file a Send Port delivers into its folder and says `arrived`, the Send
-Port, the file and when. Each ends when its input does.";
+a document, where it goes and a name, tab-separated, drops it there and
+answers `dropped` or `failed`. A receiver moves each whole file a Send Port
+delivers into its folder and says `arrived`, the Send Port, the file and
+when. Each ends when its input does. On a machine of its own, --serve
+serves the roll's sessions over Xmip's mutual TLS on port 7423, its
+certificate node.pem, node.key and anchors.pem in --configuration, a
+sender pushing to listening Receive Locations and a receiver serving its
+Send Ports over SFTP on 7422; --install registers that as a service and
+starts it; --listening says the two ports.";
 
 fn main() -> ExitCode {
     // The name is the image's own, xmip-essentials-<cluster>-external-<name>
@@ -45,6 +56,13 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    // Its ports are said and nothing more: its machine's firewall asks.
+    if started.does == Does::Listens {
+        for line in serving::listening() {
+            println!("{line}");
+        }
+        return ExitCode::SUCCESS;
+    }
     let scope = format!("{}/external/{}", cluster_root(), started.name);
     audit.locate(&scope);
     let _declared = node::Declaration::new(called, &scope, node::Purpose::Test)
@@ -64,6 +82,22 @@ fn main() -> ExitCode {
 
     let input = std::io::stdin().lock();
     let carried = match &started.does {
+        Does::Serves { folder } => return served(&audit, &started.name, folder),
+        Does::Installs { folder } => {
+            return match serving::install(&started.name, folder) {
+                Ok(said) => {
+                    println!("OK: {said}");
+                    ExitCode::SUCCESS
+                }
+                Err(problem) => {
+                    let problem = format!("external {}: {problem}", started.name);
+                    process_audit::fail(&audit, "install", &problem);
+                    eprintln!("{problem}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
+        Does::Listens => return ExitCode::SUCCESS,
         Does::Sends => program::sending(input, &mut std::io::stdout().lock()),
         Does::Receives { into, ports } => {
             match program::receiving(into, ports, input, std::io::stdout()) {
@@ -84,4 +118,35 @@ fn main() -> ExitCode {
         ],
     );
     ExitCode::SUCCESS
+}
+
+/// The far end `name` served on its machine, its certificate in `folder`:
+/// each session audited as it ends, with what the far end was for it and
+/// how many files it carried.
+fn served(audit: &ProgramAudit, name: &str, folder: &std::path::Path) -> ExitCode {
+    let (recording, named) = (audit.clone(), name.to_string());
+    let ended = Box::new(
+        move |session: Result<(String, u64), String>| match session {
+            Ok((what, carried)) => process_audit::stop(
+                &recording,
+                &[
+                    ("external", &named),
+                    ("session", &what),
+                    ("carried", &carried.to_string()),
+                ],
+            ),
+            Err(problem) => process_audit::fail(
+                &recording,
+                "session",
+                &format!("external {named}: {problem}"),
+            ),
+        },
+    );
+    match serving::run(name, folder, ended) {
+        Ok(code) => ExitCode::from(code),
+        Err(problem) => {
+            process_audit::fail(audit, "serve", &format!("external {name}: {problem}"));
+            ExitCode::FAILURE
+        }
+    }
 }

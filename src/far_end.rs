@@ -94,27 +94,7 @@ impl FarEnd {
             });
         }
         let address = format!("0.0.0.0:{FAR_END_PORT}");
-        let listener = TcpListener::bind(&address).map_err(|error| {
-            format!("REFUSED: the Parties' far end cannot be served at {address}: {error}")
-        })?;
-        let host = SigningKey::from_bytes(&codec::random::array::<32>());
-        let chosen = move |user: &str| {
-            directories
-                .get(user)
-                .map_or_else(Shared::default, Arc::clone)
-        };
-        // Every Location here logs in by its password, so no key is
-        // enrolled and every key is refused.
-        let check = login::checking(
-            enrolled
-                .iter()
-                .map(|(user, password)| (user.as_str(), password.as_str())),
-            Vec::new(),
-        );
-        // The values go with the list: the far end keeps the verifiers alone.
-        drop(enrolled);
-        let serving = transport_sftp::serving_each(listener, host, chosen, (Some(PATIENCE), check))
-            .map_err(|error| format!("REFUSED: the Parties' far end at {address}: {error}"))?;
+        let serving = serving(&address, directories, enrolled)?;
         Ok(Some(Self {
             _serving: serving,
             bindings,
@@ -130,4 +110,40 @@ impl FarEnd {
             self.address
         )
     }
+}
+
+/// SFTP served at `address` with Xmip's own server, each user of
+/// `enrolled` logging in by its password to its directory of
+/// `directories`: what a far end serves its Locations by, the one on this
+/// computer and a receiving far end on a machine of its own
+/// (`crate::external::serving`). It enrolls no key, so a key is refused
+/// whatever it signed, and it keeps the passwords' verifiers alone.
+///
+/// # Errors
+///
+/// REFUSED, in words, where the port is not given.
+pub fn serving(
+    address: &str,
+    directories: BTreeMap<String, Shared>,
+    enrolled: Vec<(String, String)>,
+) -> Result<Concurrent, String> {
+    let listener = TcpListener::bind(address).map_err(|error| {
+        format!("REFUSED: the Parties' far end cannot be served at {address}: {error}")
+    })?;
+    let host = SigningKey::from_bytes(&codec::random::array::<32>());
+    let chosen = move |user: &str| {
+        directories
+            .get(user)
+            .map_or_else(Shared::default, Arc::clone)
+    };
+    let check = login::checking(
+        enrolled
+            .iter()
+            .map(|(user, password)| (user.as_str(), password.as_str())),
+        Vec::new(),
+    );
+    // The values go with the list: the far end keeps the verifiers alone.
+    drop(enrolled);
+    transport_sftp::serving_each(listener, host, chosen, (Some(PATIENCE), check))
+        .map_err(|error| format!("REFUSED: the Parties' far end at {address}: {error}"))
 }

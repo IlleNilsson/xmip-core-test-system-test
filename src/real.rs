@@ -281,18 +281,31 @@ fn answering(name: &str, address: &str, folder: Option<&Path>) -> Result<Remote,
              to ask it whether it is an Xmip node; name the folder of one with -Certificate"
         )
     })?;
+    let identity = operator(folder)?;
+    Remote::open(address, &identity, rigs_clock())
+        .map_err(|problem| format!("REFUSED: {name} resolves, at {address}: {problem}"))
+}
+
+/// The tester's operator certificate in `folder`, as the roll presents it to
+/// what it asks: `operator.pem`, `operator.key` and `anchors.pem`, from the
+/// cluster's own authority — a node's operate listener, and a far end on a
+/// machine of its own (`crate::external::remote`).
+///
+/// # Errors
+///
+/// REFUSED, in words, where a file does not read or the three are no
+/// certificate.
+pub fn operator(folder: &Path) -> Result<tls::Identity, String> {
     let file = |leaf: &str| {
         let path = folder.join(leaf);
         std::fs::read(&path).map_err(|error| format!("REFUSED: {}: {error}", path.display()))
     };
-    let identity = tls::Identity::from_pem(
+    tls::Identity::from_pem(
         &file("operator.pem")?,
         &file("operator.key")?,
         &file("anchors.pem")?,
     )
-    .map_err(|error| format!("REFUSED: the certificate in {}: {error}", folder.display()))?;
-    Remote::open(address, &identity, rigs_clock())
-        .map_err(|problem| format!("REFUSED: {name} resolves, at {address}: {problem}"))
+    .map_err(|error| format!("REFUSED: the certificate in {}: {error}", folder.display()))
 }
 
 /// The scope the node `name` of `cluster` declares itself at (ADR-0053).

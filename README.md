@@ -247,6 +247,24 @@ amendment 2026-11-01). It enrolls no key: the check's key half is the
 ssh-key gate's (`Verifier::admits`), holding a key to the one user it is
 enrolled for, so a key is refused whatever user it signed for.
 
+**The far ends on machines of their own** (`src/external/serving.rs` and
+`remote.rs`; ADR-0028, amendment 2026-11-22) are used where every far end's
+name resolves, as a node on a machine is used where its name does: EXTTX1 to
+EXTTX3 and EXTRX1 to EXTRX3, named apart from every node. Each runs as the
+service `xmip-<name>` on its machine, `xmip-essentials-external --serve`,
+which the environment registers through the far end's own `--install` and
+the runtime's one registration of a service; the roll reaches it over Xmip's
+mutual TLS on port 7423 with the tester's operator certificate, and tells it
+the same lines as on one computer. The nodes' Receive Locations listen over
+HTTP on their nodes, as `xmip-service --slice --bind --listen` binds them,
+and each round the sender whose turn it is pushes to each, so every sender
+reaches every node that receives; each Send Port puts over SFTP on the
+receiver of its turn, `configure::placed::far_ends::far_end_of`, a user of
+its own whose password the roll mints and sets on its node. A receiver tells
+each file put with its bytes, which the roll keeps where Carried judges it;
+a listening Location names no file, so Carried pairs a drop with its
+arrival by the stamp it carries.
+
 ### Every transport declares its ceiling
 
 A `RoundTrip` adapter answers `ceiling()`: the largest payload its protocol

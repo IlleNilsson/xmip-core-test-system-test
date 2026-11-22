@@ -74,7 +74,7 @@ pub(super) fn cluster_text(
             .find(|one| one.placement == *placement)
             .and_then(|one| match &one.spot {
                 Spot::Folder(folder) => Some(folder.display().to_string().replace('\\', "/")),
-                Spot::FarEnd(_) => None,
+                Spot::FarEnd(_) | Spot::Listening(_) => None,
             });
         placed::Binding {
             address: folder.unwrap_or_default(),
@@ -458,7 +458,8 @@ mod tests {
     /// each receiver is reached by an executing node and a sending one.
     #[test]
     fn the_essentials_files_put_every_node_and_far_end_of_the_plan_to_work() {
-        use crate::external::{FILE, named, receiver, sender};
+        use crate::external::{FILE, named, sender};
+        use configure::placed::far_ends::far_end_of;
         use std::collections::BTreeSet;
         let declared = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
         let roles = |node: &str| {
@@ -540,7 +541,7 @@ mod tests {
         for turn in 0..far.receivers.len() {
             let from: Vec<Vec<NodeRole>> = of(Placed::Send)
                 .enumerate()
-                .filter(|(at, _)| receiver(*at, far.receivers.len()) == turn)
+                .filter(|(at, _)| far_end_of(*at, far.receivers.len()) == turn)
                 .map(|(_, one)| roles(&one.node))
                 .collect();
             for role in [NodeRole::Executing, NodeRole::Sending] {

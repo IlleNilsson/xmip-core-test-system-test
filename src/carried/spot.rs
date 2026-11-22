@@ -24,6 +24,9 @@ pub enum Spot {
     Folder(PathBuf),
     /// A user's directory on the Parties' far end.
     FarEnd(Shared),
+    /// The address a Receive Location listens at on its node, which the
+    /// far ends on machines of their own push to.
+    Listening(String),
 }
 
 /// One Receive Location, Send Port or Work Process placed, and its spot: a
@@ -121,5 +124,7 @@ pub(super) fn taken(spot: &Spot, name: &str) -> Option<Vec<u8>> {
             .unwrap_or_else(PoisonError::into_inner)
             .files
             .remove(name),
+        // A Send Port never listens: nothing arrives there to take.
+        Spot::Listening(_) => None,
     }
 }

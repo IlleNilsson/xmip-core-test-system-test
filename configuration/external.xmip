@@ -4,7 +4,11 @@
 # file says what the cluster is, and this one what it trades with, the
 # Parties' documents travelling through them. Where each runs is the
 # environment's, as a node's is: on one computer `Start-XmipTest` starts each
-# as a process of its own, `xmip-essentials-<cluster>-external-<name>`.
+# as a process of its own, `xmip-essentials-<cluster>-external-<name>`; on a
+# machine of its own it is the service xmip-<name>, and the roll finds it by
+# its name, as it finds a node by its own. So no far end is named as a node
+# is: the plan's external TX1 to TX3 and RX1 to RX3 are EXTTX1 to EXTRX3, as
+# their machines, XMIP-EXTTX01 to XMIP-EXTRX03.
 #
 # A sender drops into Receive Locations, each round the next sender in turn
 # into each, so every sender reaches every node that receives. A receiver
@@ -12,5 +16,5 @@
 # robin in the order they are placed in, so each is reached by the nodes
 # that send. Rename them here: nothing in the Essentials' code names one.
 
-senders = ["TX1", "TX2", "TX3"]
-receivers = ["RX1", "RX2", "RX3"]
+senders = ["EXTTX1", "EXTTX2", "EXTTX3"]
+receivers = ["EXTRX1", "EXTRX2", "EXTRX3"]

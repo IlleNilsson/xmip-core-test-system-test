@@ -69,7 +69,11 @@ fn each_far_end_is_a_process_a_sender_drops_in_turn_and_a_receiver_takes_and_tel
         let name = format!("orders-{round}.edi");
         let round = u64::try_from(round).expect("few rounds");
         let (sender, at) = far
-            .dropped((0, round), document, (&dropping, &name))
+            .dropped(
+                (0, round),
+                document,
+                (&dropping.display().to_string(), &name),
+            )
             .expect("dropped");
         assert!(at <= Instant::now(), "dropped before it answered");
         let sender = sender.to_string();

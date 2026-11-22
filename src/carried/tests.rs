@@ -4,6 +4,7 @@
 //! is the node, copying what was dropped to where it delivers it.
 
 use std::path::{Path, PathBuf};
+use std::sync::PoisonError;
 
 use configure::placed::{Placed, Placement};
 use observe::{Health, HealthRecord, Snapshot, now_unix_nanos};
@@ -28,7 +29,7 @@ fn bound(placed: Placed, name: &str, node: &str, folder: PathBuf) -> Binding {
 fn folder(binding: &Binding) -> &Path {
     match &binding.spot {
         Spot::Folder(folder) => folder,
-        Spot::FarEnd(_) => panic!("a folder"),
+        Spot::FarEnd(_) | Spot::Listening(_) => panic!("a folder"),
     }
 }
 

@@ -27,12 +27,13 @@ use runtime::directory_watch::DirectoryWatch;
 use crate::carried::{Arrived, spot};
 
 /// One file a sender is to drop: its bytes, stamped by the rig
-/// (`crate::carried`), the Receive Location's folder and the name it goes
-/// by there.
+/// (`crate::carried`), where it goes — a Receive Location's folder on this
+/// computer, or the address a Receive Location listens at on its node — and
+/// the name it goes by in a folder.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Order {
     pub bytes: Vec<u8>,
-    pub folder: PathBuf,
+    pub to: String,
     pub name: String,
 }
 
@@ -46,7 +47,7 @@ impl Order {
     pub fn line(&self) -> Result<String, String> {
         let parts = [
             codec::base64::encode(&self.bytes),
-            self.folder.display().to_string(),
+            self.to.clone(),
             self.name.clone(),
         ];
         if let Some(part) = parts.iter().find(|part| part.contains(['\t', '\n', '\r'])) {
@@ -59,13 +60,36 @@ impl Order {
     #[must_use]
     pub fn read(line: &str) -> Option<Self> {
         let mut parts = line.split('\t');
-        let (bytes, folder, name) = (parts.next()?, parts.next()?, parts.next()?);
+        let (bytes, to, name) = (parts.next()?, parts.next()?, parts.next()?);
         let bytes = codec::base64::decode(bytes).ok()?;
         parts.next().is_none().then(|| Self {
             bytes,
-            folder: PathBuf::from(folder),
+            to: to.to_string(),
             name: name.to_string(),
         })
+    }
+
+    /// The order carried out: its bytes pushed over HTTP to the address a
+    /// listening Receive Location takes them at, Xmip's own send, or dropped
+    /// whole into a folder (`carried::spot::put`); when it was dropped, in
+    /// nanoseconds since the epoch — as the push began, or as the file was
+    /// renamed in.
+    ///
+    /// # Errors
+    ///
+    /// The push or the drop refused, in words.
+    pub fn carried(&self) -> Result<i64, String> {
+        if self.to.starts_with("http://") || self.to.starts_with("https://") {
+            use transport::Transport as _;
+            let began = observe::now_unix_nanos();
+            transport_http::HttpTransport::new("0.0.0.0:0")
+                .send(&self.to, &self.bytes)
+                .map_err(|error| error.to_string())?;
+            return Ok(began);
+        }
+        spot::put(Path::new(&self.to), &self.name, &self.bytes)
+            .map_err(|error| error.to_string())?;
+        Ok(observe::now_unix_nanos())
     }
 }
 
@@ -107,22 +131,29 @@ impl Answer {
 }
 
 /// What a receiver says of a file it took: the Send Port it arrived at, its
-/// name, and when it was taken, in nanoseconds since the Unix epoch.
+/// name, when it was taken, in nanoseconds since the Unix epoch, and — from
+/// a receiver on a machine of its own, where the roll cannot look — its
+/// bytes; none from one on this computer, whose folder the roll reads.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Arrival {
     pub port: String,
     pub name: String,
     pub at_unix_nanos: i64,
+    pub bytes: Vec<u8>,
 }
 
 impl Arrival {
-    /// The arrival as one line.
+    /// The arrival as one line, its bytes in Base64 where it carries them.
     #[must_use]
     pub fn line(&self) -> String {
-        format!(
+        let said = format!(
             "arrived\t{}\t{}\t{}",
             self.port, self.name, self.at_unix_nanos
-        )
+        );
+        if self.bytes.is_empty() {
+            return said;
+        }
+        format!("{said}\t{}", codec::base64::encode(&self.bytes))
     }
 
     /// The arrival a line says, if it says one.
@@ -133,10 +164,15 @@ impl Arrival {
             return None;
         }
         let (port, name, at) = (parts.next()?, parts.next()?, parts.next()?.parse().ok()?);
+        let bytes = match parts.next() {
+            Some(encoded) => codec::base64::decode(encoded).ok()?,
+            None => Vec::new(),
+        };
         parts.next().is_none().then(|| Self {
             port: port.to_string(),
             name: name.to_string(),
             at_unix_nanos: at,
+            bytes,
         })
     }
 
@@ -163,92 +199,6 @@ pub fn instant_of(unix_nanos: i64) -> Instant {
     Instant::now().checked_sub(ago).unwrap_or_else(Instant::now)
 }
 
-/// What one far end was started to do.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Does {
-    /// Drops what it is handed into Receive Locations.
-    Sends,
-    /// Takes what the Send Ports `ports`, each by its name and folder,
-    /// deliver, into `into`.
-    Receives {
-        into: PathBuf,
-        ports: Vec<(String, PathBuf)>,
-    },
-}
-
-impl Does {
-    /// What it does, in a word, as it declares and audits it.
-    #[must_use]
-    pub const fn word(&self) -> &'static str {
-        match self {
-            Self::Sends => "sends",
-            Self::Receives { .. } => "receives",
-        }
-    }
-
-    /// What its count of files says, as its stop record says it.
-    #[must_use]
-    pub const fn counted(&self) -> &'static str {
-        match self {
-            Self::Sends => "sent",
-            Self::Receives { .. } => "received",
-        }
-    }
-}
-
-/// A far end's command line: its name and what it does.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Program {
-    pub name: String,
-    pub does: Does,
-}
-
-impl Program {
-    /// The command line `arguments`, the program's own name left out:
-    /// `--name <name> --sender`, or `--name <name> --receiver --into
-    /// <folder>` and `--port <Send Port> <folder>` for each Send Port.
-    ///
-    /// # Errors
-    ///
-    /// What is missing or not understood, in words.
-    pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Self, String> {
-        let mut arguments = arguments.into_iter();
-        let (mut name, mut sends, mut receives, mut into) = (None, false, false, None);
-        let mut ports = Vec::new();
-        while let Some(argument) = arguments.next() {
-            let mut value = |what: &str| {
-                arguments
-                    .next()
-                    .ok_or_else(|| format!("{argument} takes {what}"))
-            };
-            match argument.as_str() {
-                "--name" => name = Some(value("a name")?),
-                "--sender" => sends = true,
-                "--receiver" => receives = true,
-                "--into" => into = Some(PathBuf::from(value("a folder")?)),
-                "--port" => {
-                    let port = value("a Send Port's name and its folder")?;
-                    let folder = value("a Send Port's name and its folder")?;
-                    ports.push((port, PathBuf::from(folder)));
-                }
-                other => return Err(format!("{other} is not understood")),
-            }
-        }
-        let name = name.ok_or("--name is missing")?;
-        let does = match (sends, receives, into) {
-            (true, false, None) if ports.is_empty() => Does::Sends,
-            (false, true, Some(into)) => Does::Receives { into, ports },
-            _ => {
-                return Err(
-                    "a far end is --sender alone, or --receiver with --into and its --port"
-                        .to_string(),
-                );
-            }
-        };
-        Ok(Self { name, does })
-    }
-}
-
 /// What a far end says once it can work, the first thing it says.
 pub const READY: &str = "ready";
 
@@ -266,12 +216,12 @@ pub fn sending(input: impl BufRead, output: &mut impl Write) -> u64 {
         let Some(order) = Order::read(&line) else {
             continue;
         };
-        let answer = match spot::put(&order.folder, &order.name, &order.bytes) {
-            Ok(()) => {
+        let answer = match order.carried() {
+            Ok(at) => {
                 dropped += 1;
-                Answer::Dropped(order.name, observe::now_unix_nanos())
+                Answer::Dropped(order.name, at)
             }
-            Err(error) => Answer::Failed(order.name, error.to_string()),
+            Err(problem) => Answer::Failed(order.name, problem),
         };
         if writeln!(output, "{}", answer.line())
             .and_then(|()| output.flush())
@@ -352,6 +302,7 @@ impl<W: Write> Taking<W> {
                 port: self.port.clone(),
                 name,
                 at_unix_nanos: observe::now_unix_nanos(),
+                bytes: Vec::new(),
             };
             let mut output = self.output.lock().unwrap_or_else(PoisonError::into_inner);
             let _ = writeln!(output, "{}", arrival.line()).and_then(|()| output.flush());
@@ -368,7 +319,7 @@ mod tests {
     fn each_line_reads_back_as_written_and_a_stranger_reads_as_nothing() {
         let order = Order {
             bytes: b"UNB+UNOC:3+A+B+261111:0905+R0001'\n".to_vec(),
-            folder: PathBuf::from("drop/sales"),
+            to: "drop/sales".to_string(),
             name: "orders-1-7.edi".to_string(),
         };
         assert_eq!(Order::read(&order.line().expect("a line")), Some(order));
@@ -382,8 +333,14 @@ mod tests {
             port: "Sales orders to ERP".to_string(),
             name: "x.edi".to_string(),
             at_unix_nanos: 42,
+            bytes: Vec::new(),
         };
-        assert_eq!(Arrival::read(&arrival.line()), Some(arrival));
+        assert_eq!(Arrival::read(&arrival.line()), Some(arrival.clone()));
+        let carrying = Arrival {
+            bytes: b"UNB+UNOC:3'".to_vec(),
+            ..arrival
+        };
+        assert_eq!(Arrival::read(&carrying.line()), Some(carrying));
         assert_eq!(Arrival::read("dropped\tx.edi"), None);
         assert_eq!(Answer::read("arrived\ta\tb\t1"), None);
         let tabbed = Order {
@@ -391,31 +348,6 @@ mod tests {
             ..Order::read("VU5C\tf\tn").expect("an order")
         };
         assert!(tabbed.line().is_err(), "no part carries a tab");
-    }
-
-    #[test]
-    fn a_command_line_says_a_sender_or_a_receiver_and_nothing_else() {
-        let said = |line: &str| Program::parse(line.split(' ').map(str::to_string));
-        assert_eq!(
-            said("--name a --sender").expect("a sender").does,
-            Does::Sends
-        );
-        let receiver = said("--name b --receiver --into in --port p out").expect("a receiver");
-        assert_eq!(
-            receiver.does,
-            Does::Receives {
-                into: PathBuf::from("in"),
-                ports: vec![("p".to_string(), PathBuf::from("out"))],
-            }
-        );
-        for wrong in [
-            "--sender",
-            "--name a",
-            "--name a --sender --receiver",
-            "--name a --x",
-        ] {
-            assert!(said(wrong).is_err(), "{wrong}");
-        }
     }
 
     /// A sender drops what it is handed whole, a receiver takes it where it
@@ -429,7 +361,7 @@ mod tests {
         std::fs::create_dir_all(&dropping).expect("the Receive Location's folder");
         let order = Order {
             bytes: b"UNA:+.? 'UNB+UNOC:3".to_vec(),
-            folder: dropping.clone(),
+            to: dropping.display().to_string(),
             name: "orders-0.edi".to_string(),
         };
         let mut answered = Vec::new();

@@ -3,11 +3,13 @@
 
 use std::path::Path;
 
+use configure::placed::Placed;
+
 use crate::Roster;
-use crate::carried::Carried;
+use crate::carried::{Binding, Carried};
 use crate::cluster::external_binary;
 use crate::environment;
-use crate::external::Externals;
+use crate::external::{Externals, remote};
 use crate::far_end::FarEnd;
 use crate::real::{self, RealNode};
 use crate::served::{self, Served};
@@ -44,9 +46,33 @@ pub fn nodes(cluster: &str, base: &Path) -> Result<Nodes, String> {
     } = environment::roster().and_then(|all| real::sorted(cluster, all))?;
     // Nodes on machines of their own: driven through the Parties' far end
     // their environment bound them to, and none started here, which could
-    // reach no Storage node of theirs (ADR-0028, amendment 2026-10-22).
+    // reach no Storage node of theirs (ADR-0028, amendment 2026-10-22) —
+    // the far ends on machines of their own where they run there.
     if !real.is_empty() {
         let arrived = Carried::arrivals();
+        if remote::on_machines()? {
+            let folder = environment::certificate().ok_or(
+                "REFUSED: the far ends run on machines of their own, and the run holds no \
+                 operator certificate to reach them with; name it with -Certificate",
+            )?;
+            let identity = real::operator(&folder)?;
+            let (far, bindings) = Externals::connect(&identity, &real, base, &arrived)?;
+            let judged: Vec<Binding> = bindings
+                .iter()
+                .filter(|one| one.placement.placed == Placed::Send)
+                .cloned()
+                .collect();
+            let carried = Carried::through(&bindings, arrived, (far, judged))?;
+            return Ok(Nodes {
+                real,
+                names,
+                roster,
+                simulated,
+                served: None,
+                carried: Some(carried),
+                far_end: None,
+            });
+        }
         let far = FarEnd::serve(&real, &arrived)?;
         let carried = far
             .as_ref()
