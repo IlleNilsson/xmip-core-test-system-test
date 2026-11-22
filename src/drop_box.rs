@@ -30,7 +30,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use observe::{Count, Counted, Health, Snapshot};
-use transport::{NodeLocation, Verdict};
+use transport::{NodeLocation, NodeStart, Verdict};
 
 pub use far_ends::{FarEnds, PROTOCOLS};
 use far_ends::{Speaking, bursts_every, listed_every, transport};
@@ -207,7 +207,8 @@ struct Location {
 /// node has taken from each.
 pub struct Taker {
     name: String,
-    node: NodeLocation,
+    /// The node and this start of it, which every Location's claims name.
+    node: NodeStart,
     drop_box: DropBox,
     locations: Vec<Location>,
     round: u64,
@@ -215,7 +216,8 @@ pub struct Taker {
 
 impl Taker {
     /// The node called `name`, at `node`, reading the drop box every Party
-    /// drops into.
+    /// drops into, on a start of its own, drawn as a node draws one
+    /// (`runtime::membership::process`).
     #[must_use]
     pub fn new(name: &str, node: &str, drop_box: DropBox, parties: &Parties) -> Self {
         let locations = PROTOCOLS
@@ -231,7 +233,7 @@ impl Taker {
             .collect();
         Self {
             name: name.to_string(),
-            node: NodeLocation::new(node),
+            node: NodeStart::new(NodeLocation::new(node), runtime::membership::process()),
             drop_box,
             locations,
             round: 0,
@@ -260,7 +262,7 @@ impl Taker {
 }
 
 /// What `location` hands this node now, each accepted and signed as `name`.
-fn take_from(location: &mut Location, taker: (&DropBox, &NodeLocation, &str)) {
+fn take_from(location: &mut Location, taker: (&DropBox, &NodeStart, &str)) {
     let (drop_box, node, name) = taker;
     if location.transport.is_none() {
         location.transport = transport(drop_box, location.protocol, &location.party, Some(node))

@@ -332,7 +332,8 @@ impl Subscribing {
                 .unreadable(released, "its Journey holds no Message");
             return Ok(None);
         }
-        let Some(handoff) = pair(&released.held.hold.body) else {
+        let kept = runtime::sequence::Kept::read(&released.held.hold.body);
+        let Some(handoff) = kept.ok().and_then(|kept| pair(kept.identity)) else {
             self.pickup
                 .unreadable(released, "it is not a pair this node held");
             return Ok(None);

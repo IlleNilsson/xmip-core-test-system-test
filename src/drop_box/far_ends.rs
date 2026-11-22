@@ -23,7 +23,7 @@ use ed25519_dalek::SigningKey;
 use provision::{Order, Purpose, Source};
 use provision_self_signed::{SETTINGS, SelfSigned, TECHNOLOGY};
 use transport::concurrent::Concurrent;
-use transport::{Configured, Login, NodeLocation, Transport};
+use transport::{Configured, Login, NodeStart, Transport};
 use transport_file::FileTransport;
 use transport_ftp::{FtpTransport, Store};
 use transport_sftp::SftpTransport;
@@ -137,7 +137,7 @@ pub fn transport(
     drop_box: &DropBox,
     protocol: &str,
     party: &str,
-    node: Option<&NodeLocation>,
+    node: Option<&NodeStart>,
 ) -> Option<Result<Speaking, String>> {
     if protocol == "file" {
         let file = FileTransport::new(drop_box.location(party));
@@ -174,7 +174,7 @@ pub fn transport(
 /// Location's transport.
 fn on<T: Configured + Transport + Send + Sync + 'static>(
     built: T,
-    node: Option<&NodeLocation>,
+    node: Option<&NodeStart>,
 ) -> Result<Speaking, String> {
     match node {
         Some(node) => built
