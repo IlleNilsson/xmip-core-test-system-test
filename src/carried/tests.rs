@@ -145,3 +145,58 @@ fn a_file_delivered_where_its_route_sends_it_is_fine_and_one_at_another_port_is_
     // The watches stopped before their folders go.
     std::mem::drop(carried);
 }
+
+/// A file a Send Port delivers under a name of its own, as one that came in
+/// through a listening Receive Location is, is paired with its drop by the
+/// stamp its bytes carry, and judged whole where its route sends it.
+#[test]
+fn a_file_arriving_under_another_name_is_paired_with_its_drop_by_its_stamp() {
+    let base = scratch("carried-stamp");
+    let cluster = test_cluster();
+    let (receiving, sending) = (&cluster.node(0).name, &cluster.node(1).name);
+    let drop = bound(
+        Placed::Receive,
+        "Sales orders from Party-A",
+        receiving,
+        base.join("in"),
+    );
+    let erp = bound(
+        Placed::Send,
+        "Sales orders to ERP",
+        sending,
+        base.join("erp"),
+    );
+    let arrived = Carried::arrivals();
+    let bindings = [drop.clone(), erp.clone()];
+    let mut carried = Carried::new(&bindings, Arc::clone(&arrived)).expect("driven");
+    let root = cluster.scope();
+    let scope = delivery(&root, &drop.placement);
+    let mut snapshot = Snapshot::new();
+    carried.round(&root, &mut snapshot, now_unix_nanos());
+    let first = dropped(&drop, 0);
+    let renamed = "8f3a2c1e-0b7d-4e59-9a61-2d4c8b7e1f00.edi";
+    std::fs::copy(folder(&drop).join(&first), folder(&erp).join(renamed)).expect("delivered");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !arrived
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains_key(renamed)
+    {
+        assert!(Instant::now() < deadline, "{renamed} was never told of");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    carried.round(&root, &mut snapshot, now_unix_nanos());
+    let fine = verdict(&snapshot, &scope);
+    assert_eq!(fine.health, Health::Fine, "{}", fine.evidence);
+    assert!(
+        fine.evidence
+            .contains("1 document(s) delivered whole to Sales orders to ERP"),
+        "{}",
+        fine.evidence
+    );
+    assert!(
+        !folder(&erp).join(renamed).exists(),
+        "taken off the Send Port's folder once paired"
+    );
+    std::mem::drop(carried);
+}

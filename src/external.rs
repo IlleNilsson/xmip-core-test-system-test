@@ -208,10 +208,10 @@ impl Externals {
         Ok((started, judged))
     }
 
-    /// The file at `source` dropped into the Receive Location's `folder` as
-    /// `name` by the sender whose turn it is for the Location placed
-    /// `location`-th in round `round`, waited for until it says so: that
-    /// sender's name, and the instant it renamed the file in.
+    /// `bytes` dropped into the Receive Location's `folder` as `name` by
+    /// the sender whose turn it is for the Location placed `location`-th in
+    /// round `round`, waited for until it says so: that sender's name, and
+    /// the instant it renamed the file in.
     ///
     /// # Errors
     ///
@@ -220,13 +220,13 @@ impl Externals {
     pub fn dropped(
         &mut self,
         (location, round): (usize, u64),
-        source: &Path,
+        bytes: &[u8],
         (folder, name): (&Path, &str),
     ) -> Result<(&str, Instant), String> {
         let turn = sender(location, round, self.senders.len());
         let sender = self.senders.get_mut(turn).ok_or("no sender is running")?;
         let order = Order {
-            source: source.to_path_buf(),
+            bytes: bytes.to_vec(),
             folder: folder.to_path_buf(),
             name: name.to_string(),
         }

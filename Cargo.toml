@@ -86,6 +86,12 @@ route = { package = "xmip-core-route", git = "https://github.com/IlleNilsson/xmi
 # Port each document it drops is routed to by the product's own routing and
 # no second rule (`src/documents.rs`; ADR-0046, amendment 2026-11-11).
 route_content = { package = "xmip-core-route-content", git = "https://github.com/IlleNilsson/xmip-core-route-content", branch = "main", features = ["edi"] }
+# The stamp each document dropped carries, its interchange control
+# reference, read and written by Xmip's own `edi` path language, so a drop
+# is paired with its arrival by what the document says, whatever its file
+# is called where it arrives (`src/carried/stamp.rs`).
+path = { package = "xmip-core-path", git = "https://github.com/IlleNilsson/xmip-core-path", branch = "main" }
+path_edi = { package = "xmip-core-path-edi", git = "https://github.com/IlleNilsson/xmip-core-path-edi", branch = "main" }
 # The Essentials' Work Process, `configuration/order-approval.bpmn`: read as
 # a node's unit is compiled from it, so the rig follows a document through
 # it by what the design assigns and no second rule (`src/documents.rs`),

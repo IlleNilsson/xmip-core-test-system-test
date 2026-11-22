@@ -44,6 +44,7 @@
 mod judged;
 mod judging;
 pub(crate) mod spot;
+mod stamp;
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, PoisonError};
@@ -65,12 +66,22 @@ pub const GRACE: Duration = Duration::from_secs(5);
 /// How long an overdue file may take before it is lost.
 pub const LOST: Duration = Duration::from_secs(60);
 
-/// One file dropped: into which Location, when, its bytes, and the Send
-/// Port its route names — none for a document no Subscription takes.
+/// One file dropped: what it was called, into which Location, when, its
+/// bytes, stamped, and the Send Port its route names — none for a document
+/// no Subscription takes.
 struct Dropped {
+    name: String,
     location: usize,
     at: Instant,
     port: Option<String>,
+    bytes: Vec<u8>,
+}
+
+/// One file arrived, by its stamp: the Send Port whose spot it reached,
+/// when, and its bytes, taken off that spot.
+struct Came {
+    port: String,
+    seen: Instant,
     bytes: Vec<u8>,
 }
 
@@ -87,8 +98,14 @@ pub struct Carried {
     ports: BTreeMap<String, Binding>,
     unrouted: Vec<Document>,
     documents: Documents,
+    /// Each file dropped and not yet judged, by its stamp.
     dropped: BTreeMap<String, Dropped>,
+    /// What the spots told of, by file name, as they told it.
     arrived: Arrived,
+    /// What arrived, by the stamp its bytes carry, not yet judged.
+    came: BTreeMap<String, Came>,
+    /// The run's tag, the head of every stamp it drops.
+    run: String,
     judged: judged::Judged,
     activity: Activity,
     striking: bool,
@@ -186,6 +203,10 @@ impl Carried {
             documents,
             dropped: BTreeMap::new(),
             arrived,
+            came: BTreeMap::new(),
+            run: stamp::run_tag(
+                u64::try_from(observe::now_unix_nanos() / 1_000_000_000).unwrap_or_default(),
+            ),
             judged: judged::Judged::default(),
             activity: Activity::with_capacity(observe::DEFAULT_ITEM_CAPACITY),
             striking: false,
@@ -274,28 +295,31 @@ impl Carried {
         now: i64,
     ) -> Result<(), String> {
         let name = format!("{}-{}.edi", document.stem, self.next);
+        let stamp = stamp::of(&self.run, self.next);
         self.next += 1;
         let binding = &self.drops[location].binding;
+        let into = |error: String| format!("{name} into {}: {error}", binding.placement.name);
+        let bytes = stamp::stamped(&document.bytes, &stamp).map_err(into)?;
         // Who dropped it and when: a far end says both, the moment it
         // renamed the file in; the rig's own drop is now.
         let mut by: Option<(String, Instant)> = None;
         let written = match (&binding.spot, self.far.as_mut()) {
             (Spot::Folder(folder), Some(far)) => far
-                .dropped((location, self.rounds), &document.path, (folder, &name))
+                .dropped((location, self.rounds), &bytes, (folder, &name))
                 .map(|(sender, at)| by = Some((sender.to_string(), at))),
             (Spot::Folder(folder), None) => {
-                spot::put(folder, &name, &document.bytes).map_err(|error| error.to_string())
+                spot::put(folder, &name, &bytes).map_err(|error| error.to_string())
             }
             (Spot::FarEnd(directory), _) => {
                 directory
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .files
-                    .insert(name.clone(), document.bytes.clone());
+                    .insert(name.clone(), bytes.clone());
                 Ok(())
             }
         };
-        written.map_err(|error| format!("{name} into {}: {error}", binding.placement.name))?;
+        written.map_err(into)?;
         let port = self.documents.routed(&document.bytes).into_iter().next();
         let to = port.as_ref().map_or_else(
             || "no Subscription".to_string(),
@@ -306,7 +330,7 @@ impl Carried {
             kind: ItemKind::Stream,
             scope: located(root, &binding.placement),
             id: name.clone(),
-            bytes: document.bytes.len() as u64,
+            bytes: bytes.len() as u64,
             detail: by.as_ref().map_or_else(
                 || format!("from {from} → to {to}"),
                 |(sender, _)| format!("from {from} → to {to}, sent by {sender}"),
@@ -314,12 +338,13 @@ impl Carried {
             observed_unix_nanos: now,
         });
         self.dropped.insert(
-            name,
+            stamp,
             Dropped {
+                name,
                 location,
                 at: by.map_or_else(Instant::now, |(_, at)| at),
                 port,
-                bytes: document.bytes.clone(),
+                bytes,
             },
         );
         Ok(())
@@ -335,26 +360,6 @@ impl Carried {
     #[must_use]
     pub const fn activity(&self) -> &Activity {
         &self.activity
-    }
-
-    /// Wait, as the run ends, for every file dropped that a Subscription
-    /// takes to arrive, for at most [`LOST`]: what is not carried by then
-    /// is lost. Asked each tenth of a second, the carrying being what it
-    /// waits out.
-    pub fn settle(&self) {
-        let deadline = Instant::now() + LOST;
-        while Instant::now() < deadline {
-            let arrived = self.arrived.lock().unwrap_or_else(PoisonError::into_inner);
-            let mut routed = self
-                .dropped
-                .iter()
-                .filter(|(_, dropped)| dropped.port.is_some());
-            if routed.all(|(name, _)| arrived.contains_key(name)) {
-                return;
-            }
-            drop(arrived);
-            std::thread::sleep(Duration::from_millis(100));
-        }
     }
 
     /// The far ends carrying the files ended, each by the end of its input

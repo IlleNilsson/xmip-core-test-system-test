@@ -52,7 +52,7 @@ pub fn leave(
     if let Some(mut spawned) = spawned {
         spawned.stop();
     }
-    if let Some(carried) = &ran.carried {
+    if let Some(carried) = ran.carried.as_mut() {
         carried.settle();
     }
     let carried = ran.carried.as_ref().map_or_default(Carried::words);

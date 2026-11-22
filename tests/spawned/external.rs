@@ -63,20 +63,19 @@ fn each_far_end_is_a_process_a_sender_drops_in_turn_and_a_receiver_takes_and_tel
     // Each round the next sender drops into the Location, so as many rounds
     // as there are senders reach it from every one.
     let shipped = named(FILE).expect("the shipped far ends");
-    let source = base.join("document.edi");
-    std::fs::write(&source, b"UNA:+.? 'UNB+UNOC:3+PARTY-A:ZZZ+ESSENTIALS:ZZZ'").expect("written");
+    let document = b"UNA:+.? 'UNB+UNOC:3+PARTY-A:ZZZ+ESSENTIALS:ZZZ'";
     let mut senders = Vec::new();
     for round in 0..shipped.senders.len() {
         let name = format!("orders-{round}.edi");
         let round = u64::try_from(round).expect("few rounds");
         let (sender, at) = far
-            .dropped((0, round), &source, (&dropping, &name))
+            .dropped((0, round), document, (&dropping, &name))
             .expect("dropped");
         assert!(at <= Instant::now(), "dropped before it answered");
         let sender = sender.to_string();
         assert_eq!(
             std::fs::read(dropping.join(&name)).expect("dropped whole"),
-            std::fs::read(&source).expect("the document")
+            document
         );
         senders.push(sender);
     }

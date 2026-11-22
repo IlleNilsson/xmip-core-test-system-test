@@ -2,7 +2,7 @@
 //! (`src/bin/external.rs`), and the lines it and the roll say to each other,
 //! each written and read here alone.
 //!
-//! - **A sender** reads an [`Order`] a line — the file to send, the
+//! - **A sender** reads an [`Order`] a line — the bytes to send, the
 //!   Receive Location's folder and the name it goes by — drops it there as a
 //!   producer that means it whole does, written beside it and renamed in
 //!   (`carried::spot::put`, the one way the Essentials drops a file), and
@@ -26,23 +26,26 @@ use runtime::directory_watch::DirectoryWatch;
 
 use crate::carried::{Arrived, spot};
 
-/// One file a sender is to drop.
+/// One file a sender is to drop: its bytes, stamped by the rig
+/// (`crate::carried`), the Receive Location's folder and the name it goes
+/// by there.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Order {
-    pub source: PathBuf,
+    pub bytes: Vec<u8>,
     pub folder: PathBuf,
     pub name: String,
 }
 
 impl Order {
-    /// The order as one line: its three parts, tab-separated.
+    /// The order as one line: its three parts, tab-separated, the bytes in
+    /// Base64.
     ///
     /// # Errors
     ///
     /// Where a part holds a tab or a line break, which no line can carry.
     pub fn line(&self) -> Result<String, String> {
         let parts = [
-            self.source.display().to_string(),
+            codec::base64::encode(&self.bytes),
             self.folder.display().to_string(),
             self.name.clone(),
         ];
@@ -56,9 +59,10 @@ impl Order {
     #[must_use]
     pub fn read(line: &str) -> Option<Self> {
         let mut parts = line.split('\t');
-        let (source, folder, name) = (parts.next()?, parts.next()?, parts.next()?);
+        let (bytes, folder, name) = (parts.next()?, parts.next()?, parts.next()?);
+        let bytes = codec::base64::decode(bytes).ok()?;
         parts.next().is_none().then(|| Self {
-            source: PathBuf::from(source),
+            bytes,
             folder: PathBuf::from(folder),
             name: name.to_string(),
         })
@@ -262,9 +266,7 @@ pub fn sending(input: impl BufRead, output: &mut impl Write) -> u64 {
         let Some(order) = Order::read(&line) else {
             continue;
         };
-        let put = std::fs::read(&order.source)
-            .and_then(|bytes| spot::put(&order.folder, &order.name, &bytes));
-        let answer = match put {
+        let answer = match spot::put(&order.folder, &order.name, &order.bytes) {
             Ok(()) => {
                 dropped += 1;
                 Answer::Dropped(order.name, observe::now_unix_nanos())
@@ -365,7 +367,7 @@ mod tests {
     #[test]
     fn each_line_reads_back_as_written_and_a_stranger_reads_as_nothing() {
         let order = Order {
-            source: PathBuf::from("documents/a/orders-1.edi"),
+            bytes: b"UNB+UNOC:3+A+B+261111:0905+R0001'\n".to_vec(),
             folder: PathBuf::from("drop/sales"),
             name: "orders-1-7.edi".to_string(),
         };
@@ -386,7 +388,7 @@ mod tests {
         assert_eq!(Answer::read("arrived\ta\tb\t1"), None);
         let tabbed = Order {
             name: "a\tb".to_string(),
-            ..Order::read("s\tf\tn").expect("an order")
+            ..Order::read("VU5C\tf\tn").expect("an order")
         };
         assert!(tabbed.line().is_err(), "no part carries a tab");
     }
@@ -423,12 +425,10 @@ mod tests {
     fn a_sender_drops_whole_and_a_receiver_takes_what_arrives_and_says_so() {
         let base = scratch("external");
         let (dropping, out, into) = (base.join("drop"), base.join("out"), base.join("taken"));
-        let source = base.join("orders.edi");
-        std::fs::write(&source, b"UNA:+.? 'UNB+UNOC:3").expect("a document");
         // The Receive Location's folder is there, as the run makes it.
         std::fs::create_dir_all(&dropping).expect("the Receive Location's folder");
         let order = Order {
-            source,
+            bytes: b"UNA:+.? 'UNB+UNOC:3".to_vec(),
             folder: dropping.clone(),
             name: "orders-0.edi".to_string(),
         };

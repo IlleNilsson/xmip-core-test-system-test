@@ -194,7 +194,12 @@ node, and **drives them** (`src/carried.rs`): the rig is the Parties and
 the company's ERP, and each round drops into each bound Receive Location
 the next of that Location's own documents — real UN/EDIFACT D.24A
 interchanges in `documents/<Location>/` (`src/documents.rs`), named
-`<document>-<number>.edi` — which the cluster's Subscriptions route by their
+`<document>-<number>.edi`, each stamped as it is dropped: its interchange
+control reference, `UNB`'s fifth element and `UNZ`'s second, set to the
+run's tag and the drop's number by Xmip's own `edi` path language
+(`src/carried/stamp.rs`), so an arrival is paired with its drop by what the
+document says, whatever its file is called where it arrives — which the
+cluster's Subscriptions route by their
 message type and recipient, promoted from the document (`content:edi:UNH/2/1`,
 `content:edi:UNB/3/1`), to a Send Port another node sends. Beneath each
 Receive Location on its node, `…/receive/<Location>/delivery` says how many
