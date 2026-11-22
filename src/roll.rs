@@ -38,13 +38,14 @@ pub struct Ran {
 /// The roll of `cluster` leaving, having `ran`: the cluster process asked
 /// to leave first, so it stops its own nodes on the way out and nothing is
 /// orphaned; every file dropped into the nodes the run started given its
-/// time to arrive, then those nodes drained before what they keep goes
+/// time to arrive, what was carried said and the far ends outside the
+/// cluster ended, then those nodes drained before what they keep goes
 /// with the run's `base`, and the cluster's file at `path`; the images go
 /// with them, and the stop is audited.
 pub fn leave(
     audit: &ProgramAudit,
     cluster: &str,
-    ran: &Ran,
+    ran: &mut Ran,
     (spawned, served): (Option<Spawned>, Option<Served>),
     (base, path): (&Path, &Path),
 ) {
@@ -53,6 +54,10 @@ pub fn leave(
     }
     if let Some(carried) = &ran.carried {
         carried.settle();
+    }
+    let carried = ran.carried.as_ref().map_or_default(Carried::words);
+    if let Some(far) = ran.carried.as_mut() {
+        far.end();
     }
     if let Some(served) = served {
         served.stop();
@@ -64,7 +69,6 @@ pub fn leave(
     image::clear();
     let rounds = ran.round.to_string();
     let taken = ran.dropping.as_ref().map_or_default(Dropping::words);
-    let carried = ran.carried.as_ref().map_or_default(Carried::words);
     process_audit::stop(
         audit,
         &[

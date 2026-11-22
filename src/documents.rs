@@ -38,11 +38,13 @@ use crate::subscribing::CLUSTER;
 /// The folder of a document no Subscription takes.
 pub const UNROUTED: &str = "unrouted";
 
-/// One document: what its file is called, less `.edi`, and its bytes.
+/// One document: what its file is called, less `.edi`, its bytes, and
+/// where it is shipped, which a far end sends it from (`crate::external`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Document {
     pub stem: String,
     pub bytes: Vec<u8>,
+    pub path: PathBuf,
 }
 
 /// The shipped documents, by folder, and the cluster's Subscriptions with
@@ -102,7 +104,11 @@ impl Documents {
                 let stem = file
                     .file_stem()
                     .map_or_default(|stem| stem.to_string_lossy().into_owned());
-                documents.push(Document { stem, bytes });
+                documents.push(Document {
+                    stem,
+                    bytes,
+                    path: file,
+                });
             }
             documents.sort_by(|a, b| a.stem.cmp(&b.stem));
             let name = place

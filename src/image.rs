@@ -7,8 +7,9 @@
 //! Eleven rows said `xmip-essentials-node` six times over and nothing said
 //! which cluster or which node.
 //!
-//! The shape is `xmip-essentials-<cluster>-roll`, `-cluster` and
-//! `-node-<name>`: the kind is a marker the shape carries, so a node may be
+//! The shape is `xmip-essentials-<cluster>-roll`, `-cluster`,
+//! `-node-<name>` and, for a far end outside the cluster,
+//! `-external-<name>`: the kind is a marker the shape carries, so a node may be
 //! called anything a file may be called — including `roll` (the owner,
 //! 2026-09-20: *a node is a node and can have one or more roles, roll is
 //! something different*).
@@ -69,11 +70,7 @@ fn marked(name: &str) -> String {
 /// distinction. REFUSED at the door, never mangled quietly (ADR-0055).
 #[must_use]
 pub fn refusal(name: &str) -> Option<String> {
-    let shaped = name.starts_with(|first: char| first.is_ascii_alphabetic())
-        && name
-            .chars()
-            .all(|letter| letter.is_ascii_alphanumeric() || letter == '-');
-    if shaped {
+    if shaped(name) {
         return None;
     }
     Some(format!(
@@ -81,6 +78,17 @@ pub fn refusal(name: &str) -> Option<String> {
          letter, because it is the last word of {SUITE}-<cluster>-{NODE}-<node> \
          and a file name: not {name}"
     ))
+}
+
+/// Whether `name` can end a process's name and a file's: letters, digits
+/// and hyphens, starting with a letter. A node's name and a far end's
+/// (`crate::external`) are both held to it.
+#[must_use]
+pub fn shaped(name: &str) -> bool {
+    name.starts_with(|first: char| first.is_ascii_alphabetic())
+        && name
+            .chars()
+            .all(|letter| letter.is_ascii_alphanumeric() || letter == '-')
 }
 
 /// The image the instance called `what` of `cluster` runs: a hard link to

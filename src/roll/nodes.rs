@@ -5,7 +5,9 @@ use std::path::Path;
 
 use crate::Roster;
 use crate::carried::Carried;
+use crate::cluster::external_binary;
 use crate::environment;
+use crate::external::Externals;
 use crate::far_end::FarEnd;
 use crate::real::{self, RealNode};
 use crate::served::{self, Served};
@@ -63,9 +65,16 @@ pub fn nodes(cluster: &str, base: &Path) -> Result<Nodes, String> {
     let (served, started, simulated) = serve(cluster, &roster, simulated, base)?;
     names.extend(started.iter().map(|node| node.name.clone()));
     real.extend(started);
+    // The nodes started here are driven through the far ends outside the
+    // cluster, each a process of its own (ADR-0028, amendment 2026-11-22).
     let carried = served
         .as_ref()
-        .map(|served| Carried::new(&served.bindings, Carried::arrivals()))
+        .map(|served| {
+            let arrived = Carried::arrivals();
+            let program = external_binary().map_err(|error| format!("REFUSED: {error}"))?;
+            let far = Externals::start(&program, (cluster, base), &served.bindings, &arrived)?;
+            Carried::through(&served.bindings, arrived, far)
+        })
         .transpose()?;
     Ok(Nodes {
         real,

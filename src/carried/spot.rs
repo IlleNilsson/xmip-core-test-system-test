@@ -1,6 +1,9 @@
 //! Where Carried drops and reads, and what arrived there: a folder of the
 //! run's on this computer, or a user's directory on the Parties' far end;
-//! each arrival recorded once, by the Send Port whose spot it reached.
+//! each arrival recorded once, by the Send Port whose spot it reached. How a
+//! file is dropped into a folder and what a folder holds whole are said
+//! here once, for the rig and the far ends outside the cluster
+//! (`crate::external`).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -51,18 +54,41 @@ pub fn delivery(root: &str, placement: &Placement) -> String {
 /// Every file whole in `folder` — none a send is still writing — recorded
 /// where it was not, as arrived at `port`, at `now`.
 pub(super) fn seen(folder: &Path, port: &str, arrived: &Arrived, now: Instant) {
-    let Ok(entries) = std::fs::read_dir(folder) else {
-        return;
-    };
     let mut arrived = arrived.lock().unwrap_or_else(PoisonError::into_inner);
-    for entry in entries.filter_map(Result::ok) {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if !name.contains(".xmip-") {
-            arrived
-                .entry(name)
-                .or_insert_with(|| (port.to_string(), now));
-        }
+    for name in whole(folder) {
+        arrived
+            .entry(name)
+            .or_insert_with(|| (port.to_string(), now));
     }
+}
+
+/// The name of every file whole in `folder`: none a send is still writing,
+/// which goes by a name of the send's own until it is kept. What a Send
+/// Port's folder holds as delivered, for the rig and a far end alike.
+pub(crate) fn whole(folder: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| !name.contains(".xmip-"))
+        .collect()
+}
+
+/// `bytes` dropped into `folder` as `name` as a producer that means it whole
+/// drops a file: written beside the folder and renamed in, so a Receive
+/// Location never takes half of it. The one way the Essentials drops a
+/// file, the rig's own and a far end's.
+///
+/// # Errors
+///
+/// Where it cannot be written or renamed.
+pub(crate) fn put(folder: &Path, name: &str, bytes: &[u8]) -> std::io::Result<()> {
+    let beside = folder.with_extension("beside");
+    std::fs::create_dir_all(&beside)?;
+    std::fs::write(beside.join(name), bytes)?;
+    std::fs::rename(beside.join(name), folder.join(name))
 }
 
 /// What a far end tells of a file a Send Location of the Send Port `port`

@@ -13,7 +13,12 @@
 //! Where it drops and reads is a [`Spot`]: a folder of the run's for the
 //! nodes it starts on this computer (`served`), and on the Parties' far
 //! end for the nodes on machines of their own, each Location a user's
-//! directory there (`far_end`) — the same placement either way.
+//! directory there (`far_end`) — the same placement either way. On this
+//! computer the far ends outside the cluster carry the files, each a
+//! process of its own (`crate::external`; ADR-0028, amendment 2026-11-22):
+//! each round the sender whose turn it is drops each Location's document,
+//! and the receiver a Send Port delivers to takes what arrives and tells
+//! of it, into a folder of its own where it is judged.
 //!
 //! **The judge** (`judged.rs`): a file must arrive whole, its bytes the
 //! ones dropped, where the Send Port its route names is placed; one at
@@ -37,7 +42,8 @@
 //! (ADR-0032), the activity a run of served nodes publishes.
 
 mod judged;
-mod spot;
+mod judging;
+pub(crate) mod spot;
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, PoisonError};
@@ -48,8 +54,9 @@ use observe::{Activity, Item, ItemKind, Snapshot};
 use runtime::directory_watch::DirectoryWatch;
 
 use crate::documents::{Document, Documents};
+use crate::external::Externals;
 pub use spot::{Arrived, Binding, Spot, delivery, told};
-use spot::{located, placed_name, seen, taken};
+use spot::{located, placed_name, seen};
 
 /// How long a file may take before it is overdue: a bound on the test,
 /// never on Xmip.
@@ -88,18 +95,48 @@ pub struct Carried {
     struck_turn: Option<u64>,
     _watching: Vec<DirectoryWatch>,
     next: u64,
+    /// The rounds dropped so far: whose turn each sender's is.
+    rounds: u64,
+    /// The far ends carrying the files, where the run started them.
+    far: Option<Externals>,
 }
 
 impl Carried {
-    /// Drive `bindings`: each folder made and each Send Port's watched; a
-    /// far end's Send Port directories tell `arrived`, which they were made
-    /// with ([`told`]). Each Receive Location takes its own documents.
+    /// Drive `bindings` itself: each folder made and each Send Port's
+    /// watched; a far end's Send Port directories tell `arrived`, which they
+    /// were made with ([`told`]). Each Receive Location takes its own
+    /// documents.
     ///
     /// # Errors
     ///
     /// A folder that cannot be made or watched, the documents that do not
     /// read, or a Receive Location with none, in words.
     pub fn new(bindings: &[Binding], arrived: Arrived) -> Result<Self, String> {
+        Self::built(bindings, arrived, None)
+    }
+
+    /// Drive `bindings` through the far ends `far` started over them
+    /// (`Externals::start`): each document dropped by the sender whose turn
+    /// it is, and each Send Port judged where its receiver takes what it
+    /// delivers, `judged`, told of by that receiver in `arrived`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Carried::new`].
+    pub fn through(
+        bindings: &[Binding],
+        arrived: Arrived,
+        far: (Externals, Vec<Binding>),
+    ) -> Result<Self, String> {
+        Self::built(bindings, arrived, Some(far))
+    }
+
+    fn built(
+        bindings: &[Binding],
+        arrived: Arrived,
+        far: Option<(Externals, Vec<Binding>)>,
+    ) -> Result<Self, String> {
+        let (far, judged) = far.map_or((None, Vec::new()), |(far, judged)| (Some(far), judged));
         let documents = Documents::shipped()?;
         let mut watching = Vec::new();
         let mut ports = BTreeMap::new();
@@ -116,6 +153,11 @@ impl Carried {
             }
             match binding.placement.placed {
                 Placed::Send => {
+                    // Taken by its receiver, which tells of it.
+                    if let Some(at) = judged.iter().find(|one| one.placement == binding.placement) {
+                        ports.insert(binding.placement.name.clone(), at.clone());
+                        continue;
+                    }
                     if let Spot::Folder(folder) = &binding.spot {
                         let (seeing, telling) = (folder.clone(), Arc::clone(&arrived));
                         let port = binding.placement.name.clone();
@@ -150,6 +192,8 @@ impl Carried {
             struck_turn: None,
             _watching: watching,
             next: 0,
+            rounds: 0,
+            far,
         })
     }
 
@@ -195,6 +239,7 @@ impl Carried {
                 failed.push((location, problem));
             }
         }
+        self.rounds += 1;
         self.judge(root, now);
         for (location, place) in self.drops.iter().enumerate() {
             let problems: Vec<&str> = failed
@@ -231,15 +276,17 @@ impl Carried {
         let name = format!("{}-{}.edi", document.stem, self.next);
         self.next += 1;
         let binding = &self.drops[location].binding;
-        let written = match &binding.spot {
-            Spot::Folder(folder) => {
-                let beside = folder.with_extension("beside");
-                std::fs::create_dir_all(&beside)
-                    .and_then(|()| std::fs::write(beside.join(&name), &document.bytes))
-                    .and_then(|()| std::fs::rename(beside.join(&name), folder.join(&name)))
-                    .map_err(|error| error.to_string())
+        // Who dropped it and when: a far end says both, the moment it
+        // renamed the file in; the rig's own drop is now.
+        let mut by: Option<(String, Instant)> = None;
+        let written = match (&binding.spot, self.far.as_mut()) {
+            (Spot::Folder(folder), Some(far)) => far
+                .dropped((location, self.rounds), &document.path, (folder, &name))
+                .map(|(sender, at)| by = Some((sender.to_string(), at))),
+            (Spot::Folder(folder), None) => {
+                spot::put(folder, &name, &document.bytes).map_err(|error| error.to_string())
             }
-            Spot::FarEnd(directory) => {
+            (Spot::FarEnd(directory), _) => {
                 directory
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -254,19 +301,23 @@ impl Carried {
             || "no Subscription".to_string(),
             |port| self.at(port).map_or_else(|| port.clone(), placed_name),
         );
+        let from = placed_name(&binding.placement);
         self.activity.record(Item {
             kind: ItemKind::Stream,
             scope: located(root, &binding.placement),
             id: name.clone(),
             bytes: document.bytes.len() as u64,
-            detail: format!("from {} → to {to}", placed_name(&binding.placement)),
+            detail: by.as_ref().map_or_else(
+                || format!("from {from} → to {to}"),
+                |(sender, _)| format!("from {from} → to {to}, sent by {sender}"),
+            ),
             observed_unix_nanos: now,
         });
         self.dropped.insert(
             name,
             Dropped {
                 location,
-                at: Instant::now(),
+                at: by.map_or_else(Instant::now, |(_, at)| at),
                 port,
                 bytes: document.bytes.clone(),
             },
@@ -277,73 +328,6 @@ impl Carried {
     /// Where the Send Port `port` is placed.
     fn at(&self, port: &str) -> Option<&Placement> {
         self.ports.get(port).map(|binding| &binding.placement)
-    }
-
-    /// Every file that arrived since the last judgment, judged once and
-    /// let go of: whole where its route sends it, elsewhere, or with other
-    /// bytes; each arrival said as a recent item, and taken off the Send
-    /// Port's spot, as its Party takes what it is delivered. What has not
-    /// arrived is how long it has waited. Nothing it keeps grows with the
-    /// run's age: an arrival is let go of once judged, one of no file this
-    /// run dropped as it is seen, and a document no Subscription takes once
-    /// it is older than [`LOST`].
-    fn judge(&mut self, root: &str, now: i64) {
-        let came: Vec<(String, (String, Instant))> = {
-            let mut arrived = self.arrived.lock().unwrap_or_else(PoisonError::into_inner);
-            let came = self
-                .dropped
-                .keys()
-                .filter_map(|name| arrived.remove(name).map(|seen| (name.clone(), seen)))
-                .collect();
-            arrived.retain(|name, _| self.dropped.contains_key(name));
-            came
-        };
-        let mut judged = Vec::new();
-        for (name, (port, seen)) in &came {
-            let (Some(dropped), Some(placed)) = (self.dropped.get(name), self.ports.get(port))
-            else {
-                continue;
-            };
-            let whole = taken(&placed.spot, name).is_some_and(|bytes| bytes == dropped.bytes);
-            let took = seen.saturating_duration_since(dropped.at);
-            let routed = (dropped.port.as_deref(), port.as_str());
-            self.judged
-                .arrived(name, dropped.location, routed, (whole, took));
-            self.activity.record(Item {
-                kind: ItemKind::Message,
-                scope: format!(
-                    "{root}/node/{}/send/{}",
-                    placed.placement.node, placed.placement.name
-                ),
-                id: name.clone(),
-                bytes: dropped.bytes.len() as u64,
-                detail: format!(
-                    "from {} → to {}",
-                    placed_name(&self.drops[dropped.location].binding.placement),
-                    placed_name(&placed.placement)
-                ),
-                observed_unix_nanos: now,
-            });
-            judged.push(name.clone());
-        }
-        for name in judged {
-            self.dropped.remove(&name);
-        }
-        let at = Instant::now();
-        self.dropped
-            .retain(|_, dropped| dropped.port.is_some() || at.duration_since(dropped.at) < LOST);
-        let waiting = self
-            .dropped
-            .iter()
-            .filter(|(_, dropped)| dropped.port.is_some())
-            .map(|(name, dropped)| {
-                (
-                    name.as_str(),
-                    dropped.location,
-                    at.duration_since(dropped.at),
-                )
-            });
-        self.judged.waiting(waiting);
     }
 
     /// What was dropped and arrived, as recent items with their from and
@@ -373,6 +357,13 @@ impl Carried {
         }
     }
 
+    /// The far ends carrying the files ended, each by the end of its input
+    /// and waited for, as the run ends: their images then go with the
+    /// run's. Said in [`Carried::words`] first; nothing is dropped after.
+    pub fn end(&mut self) {
+        drop(self.far.take());
+    }
+
     /// The judgment so far, in words.
     #[must_use]
     pub fn words(&self) -> String {
@@ -382,10 +373,14 @@ impl Carried {
             .values()
             .filter(|dropped| dropped.port.is_some())
             .count();
-        format!(
+        let carried = format!(
             "{delivered} of {} carried",
             routed + u64::try_from(waiting).unwrap_or(0)
-        )
+        );
+        match &self.far {
+            Some(far) => format!("{carried}; {}", far.words()),
+            None => carried,
+        }
     }
 }
 

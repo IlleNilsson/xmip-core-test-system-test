@@ -1,0 +1,16 @@
+# The far ends outside the cluster, as the owner's node plan of 2026-11-22
+# lays them out: three that send to it and three it sends to (ADR-0028,
+# amendment 2026-11-22). They are the Essentials', never Xmip's: the cluster's
+# file says what the cluster is, and this one what it trades with, the
+# Parties' documents travelling through them. Where each runs is the
+# environment's, as a node's is: on one computer `Start-XmipTest` starts each
+# as a process of its own, `xmip-essentials-<cluster>-external-<name>`.
+#
+# A sender drops into Receive Locations, each round the next sender in turn
+# into each, so every sender reaches every node that receives. A receiver
+# takes what Send Ports deliver, each Send Port delivering to one, round
+# robin in the order they are placed in, so each is reached by the nodes
+# that send. Rename them here: nothing in the Essentials' code names one.
+
+senders = ["TX1", "TX2", "TX3"]
+receivers = ["RX1", "RX2", "RX3"]

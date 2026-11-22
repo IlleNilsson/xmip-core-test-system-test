@@ -16,7 +16,8 @@
 //!
 //! The rig follows what each publishes over its local endpoint, as it
 //! follows a real node's (`real::gathered`), and drives them through their Receive
-//! Locations (`carried`). It stops them by ending their input, the stop a
+//! Locations (`carried`), through the far ends outside the cluster
+//! (`external`). It stops them by ending their input, the stop a
 //! node a test started takes, and waits for each to drain.
 
 mod given;
@@ -180,8 +181,9 @@ impl Started {
 }
 
 /// Whether `child` exited within `within`: asked each tenth of a second, a
-/// stop's drain being what it waits out.
-fn exited(child: &mut Child, within: Duration) -> bool {
+/// stop's drain being what it waits out. A node's, and a far end's
+/// (`crate::external`).
+pub(crate) fn exited(child: &mut Child, within: Duration) -> bool {
     let deadline = Instant::now() + within;
     loop {
         match child.try_wait() {

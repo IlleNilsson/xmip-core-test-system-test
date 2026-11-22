@@ -139,7 +139,11 @@ a stage, each runs whole tests itself, and both the roll's first line and
 
 The owner: *one TOML file that can be run for tests regardless of node
 faking or actual nodes.* `configuration/cluster.xmip` is that file (ADR-0028,
-amendment 2026-10-21). It declares the cluster's nine nodes and their roles,
+amendment 2026-10-21). It declares the cluster's eleven nodes and their roles,
+as the owner's node plan of 2026-11-22 lays them out — RX1 to RX3 receiving,
+EX1 processing, EX2 executing, TX1 to TX3 sending, OP1 operational and
+monitoring, DS1 and DS2 storage (ADR-0028 and ADR-0056, amendments
+2026-11-22) —
 where each that stores nothing reaches the Storage nodes, by name, where
 every node is operated from, with its certificate's paths relative to its
 configuration, the Parties and the Xmip Applications — and nothing of where
@@ -209,7 +213,23 @@ drawing, so a struck Location is drawn as the Monitor shows it. A file
 judged is taken off its Send Port's folder, and an arrival let go of, so
 nothing the rig keeps grows with the run's age. The run ends their input to stop them,
 once every file had its time to arrive. The cluster process is given the
-simulated nodes alone, and only they carry the relayed scenarios. A node on a machine of its own is driven through the
+simulated nodes alone, and only they carry the relayed scenarios.
+
+**The far ends outside the cluster** carry the files on this computer, each a
+process of its own (src/external.rs, its program src/bin/external.rs;
+ADR-0028, amendment 2026-11-22): three senders and three receivers, named in
+[configuration/external.xmip](configuration/external.xmip) beside the
+cluster's file, each run from an image of its own,
+xmip-essentials-<cluster>-external-<name>. Each round each Receive
+Location's document goes through the next sender in turn, which drops it as
+the rig did, so every sender reaches every node that receives; each Send
+Port delivers to one receiver, round robin in the order the Send Ports are
+placed, which moves each file into a folder of its own and tells the roll
+the Send Port, the file and when, and Carried judges it there. Each ends
+with its input and audits how many files it sent or received; the roll's
+stop says each count after *carried*.
+
+A node on a machine of its own is driven through the
 Parties' far end (`src/far_end.rs`): the roll serves SFTP on this computer,
 port 7422, each Location the environment placed on the real nodes a user of
 its own, drops into the Receive Locations' and is told of what the Send

@@ -63,6 +63,7 @@ pub mod environment;
 pub mod eventing;
 pub mod exchange;
 pub mod exclusive_claim;
+pub mod external;
 pub mod far_end;
 pub mod fault;
 pub mod filing;

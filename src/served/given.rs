@@ -289,13 +289,14 @@ mod tests {
 
     #[test]
     fn two_runs_issue_their_nodes_under_the_one_essentials_authority() {
-        // A node that keeps Xmip Storage and one that does not, as the
+        // A node that keeps Xmip Storage and one covering every stage beside
+        // it, which works alone (ADR-0056, amendment 2026-11-22), as the
         // Essentials' own file declares them, and the test cluster's name.
         let roles = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
         let storage = |node: &&(String, Capability)| node.1.roles().contains(&NodeRole::Storage);
         let declared: Vec<(String, Capability)> = [
             roles.iter().find(storage),
-            roles.iter().find(|node| !storage(node)),
+            roles.iter().find(|node| node.1.executes()),
         ]
         .into_iter()
         .map(|node| node.expect("a node of each kind").clone())
@@ -402,11 +403,18 @@ mod tests {
     }
 
     /// The Essentials' Work Process unit is beside each node of a run that
-    /// opens it, the nodes serving the process stage, and beside no other:
-    /// the run gives a node what its own reading of its slice starts.
+    /// opens it, the nodes the placement runs the Work Process on, and
+    /// beside no other: the run gives a node what its own reading of its
+    /// slice starts.
     #[test]
     fn the_work_process_unit_is_placed_beside_each_node_that_opens_it_and_no_other() {
         let declared = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
+        let running: Vec<String> = placed::placements(CLUSTER, &declared)
+            .expect("placed")
+            .into_iter()
+            .filter(|placement| placement.placed == Placed::Process)
+            .map(|placement| placement.node)
+            .collect();
         let cluster = crate::cluster_name().expect("the test cluster is named");
         let base = crate::support::scratch("given-unit");
         let now = observe::now_unix_nanos() / 1_000_000_000;
@@ -426,14 +434,10 @@ mod tests {
         .expect("the cluster's text");
         let file = crate::order_approval::library_file();
         let mut beside = Vec::new();
-        for (node, declares) in &declared {
+        for (node, _) in &declared {
             configured(&text, (&cluster, node), &area).expect("configured");
-            let processing = declares
-                .roles()
-                .iter()
-                .any(|role| matches!(role, NodeRole::Processing | NodeRole::Executing));
             let placed = area.join(node).join(&file).is_file();
-            assert_eq!(placed, processing, "{node}: the unit beside it");
+            assert_eq!(placed, running.contains(node), "{node}: the unit beside it");
             if placed {
                 beside.push(node.clone());
             }
@@ -442,6 +446,112 @@ mod tests {
             !beside.is_empty(),
             "some node of the file runs the Work Process"
         );
+    }
+
+    /// The owner's node plan, 2026-11-22, held over the Essentials' own
+    /// files as a run places them, every node found by what it declares:
+    /// every node serving a stage takes work; the Work Process runs on every
+    /// processing node; an executing node receives documents and
+    /// sends them on itself, no Work Process between; other documents go
+    /// from a receiving node to a sending one; every sender reaches every
+    /// node that receives within as many rounds as there are senders; and
+    /// each receiver is reached by an executing node and a sending one.
+    #[test]
+    fn the_essentials_files_put_every_node_and_far_end_of_the_plan_to_work() {
+        use crate::external::{FILE, named, receiver, sender};
+        use std::collections::BTreeSet;
+        let declared = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
+        let roles = |node: &str| {
+            let found = declared.iter().find(|(name, _)| name == node);
+            found.expect("declared").1.roles().to_vec()
+        };
+        let placements = placed::placements(CLUSTER, &declared).expect("placed");
+        let of = |kind: Placed| placements.iter().filter(move |one| one.placed == kind);
+        for (node, declares) in &declared {
+            let serves = !declares.stages().is_empty();
+            let works = placements.iter().any(|one| one.node == *node);
+            assert_eq!(works, serves, "{node} takes work where it serves a stage");
+        }
+        let running: Vec<&str> = of(Placed::Process).map(|one| one.node.as_str()).collect();
+        let processing = declared
+            .iter()
+            .filter(|(_, declares)| declares.roles().contains(&NodeRole::Processing));
+        for (node, _) in processing {
+            assert!(
+                running.contains(&node.as_str()),
+                "the Work Process on {node}"
+            );
+        }
+        let documents = crate::documents::Documents::shipped().expect("the documents");
+        let sending = |port: &str| {
+            let found = of(Placed::Send).find(|one| one.name == port);
+            found.expect("a placed Send Port").node.clone()
+        };
+        let (mut in_one, mut across) = (BTreeSet::new(), BTreeSet::new());
+        for location in of(Placed::Receive) {
+            for document in documents
+                .of(&location.name, &location.folded())
+                .expect("its own")
+            {
+                let processed =
+                    documents.processed(&document.bytes) != context::MessageContext::new();
+                for port in documents.routed(&document.bytes) {
+                    let to = sending(&port);
+                    if to == location.node && !processed {
+                        in_one.insert(location.node.clone());
+                    } else if to != location.node {
+                        across.insert((location.node.clone(), to));
+                    }
+                }
+            }
+        }
+        assert!(
+            in_one
+                .iter()
+                .any(|node| roles(node).contains(&NodeRole::Executing)),
+            "an executing node receives and sends a route itself: {in_one:?}"
+        );
+        assert!(
+            across
+                .iter()
+                .any(|(from, to)| roles(from).contains(&NodeRole::Receiving)
+                    && roles(to).contains(&NodeRole::Sending)),
+            "documents go from a receiving node to a sending one: {across:?}"
+        );
+        let far = named(FILE).expect("the far ends");
+        let receiving: BTreeSet<&str> = of(Placed::Receive).map(|one| one.node.as_str()).collect();
+        for turn in 0..far.senders.len() {
+            let reached: BTreeSet<&str> = of(Placed::Receive)
+                .enumerate()
+                .filter(|(at, _)| {
+                    (0..far.senders.len()).any(|round| {
+                        let round = u64::try_from(round).expect("few rounds");
+                        sender(*at, round, far.senders.len()) == turn
+                    })
+                })
+                .map(|(_, one)| one.node.as_str())
+                .collect();
+            assert_eq!(
+                reached, receiving,
+                "the sender {} reaches every node that receives",
+                far.senders[turn]
+            );
+        }
+        for turn in 0..far.receivers.len() {
+            let from: Vec<Vec<NodeRole>> = of(Placed::Send)
+                .enumerate()
+                .filter(|(at, _)| receiver(*at, far.receivers.len()) == turn)
+                .map(|(_, one)| roles(&one.node))
+                .collect();
+            for role in [NodeRole::Executing, NodeRole::Sending] {
+                assert!(
+                    from.iter().any(|roles| roles.contains(&role)),
+                    "the receiver {} is reached by a node declaring {}",
+                    far.receivers[turn],
+                    role.name()
+                );
+            }
+        }
     }
 
     /// The `[tuning] connect_retransmissions` the node configured at `path`

@@ -1,5 +1,6 @@
 //! The tests that spawn this crate's binaries: a cluster's nodes as
-//! processes, a cluster as a process, and two nodes over one lane.
+//! processes, a cluster as a process, two nodes over one lane, and the far
+//! ends outside the cluster.
 //!
 //! An integration program, so cargo builds `xmip-essentials-node` and
 //! `xmip-essentials-cluster` before it, with the features it was built with,
@@ -11,6 +12,7 @@
 //! test*).
 
 mod claim;
+mod external;
 mod liveness;
 mod nodes;
 mod tree;

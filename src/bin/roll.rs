@@ -251,7 +251,7 @@ fn main() {
         std::thread::sleep(real);
     }
 
-    let ran = Ran {
+    let mut ran = Ran {
         round,
         dropping,
         carried,
@@ -259,7 +259,7 @@ fn main() {
     leave(
         &audit,
         &cluster,
-        &ran,
+        &mut ran,
         (spawned, served),
         (&base, &cluster_path),
     );

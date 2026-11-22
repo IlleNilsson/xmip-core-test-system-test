@@ -51,7 +51,7 @@ use std::time::{Duration, Instant};
 
 use observe::Snapshot;
 
-pub use binary::{cluster_binary, node_binary};
+pub use binary::{cluster_binary, external_binary, node_binary};
 #[cfg(feature = "test-support")]
 pub use idle::IdlePass;
 pub(crate) use liveness::Liveness;

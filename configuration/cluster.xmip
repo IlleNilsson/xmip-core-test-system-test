@@ -50,9 +50,14 @@ certificate = "tls/node.pem"
 key = "tls/node.key"
 anchors = "tls/anchors.pem"
 
-# The nodes, named as the owner names them (ADR-0056, amendment 2026-11-12):
-# RXn receiving, PXn processing, TXn sending, EXn executing, OPn operational
-# and monitoring, DSn Storage. What each does is its roles, never its letters.
+# The nodes, named as the owner names them (ADR-0056, amendment 2026-11-12),
+# as his node plan of 2026-11-22 lays them out: RX1 to RX3 receive, TX1 to
+# TX3 send, EX1 works between them, the Work Process "Order approval" there,
+# EX2 receives, processes and sends in one node at low latency, OP1 operates
+# and monitors, DS1 and DS2 keep Xmip Storage. One node covering every role
+# works too; receiving, executing and sending nodes are split as security,
+# firewall and load need (ADR-0056, amendment 2026-11-22). What each does is
+# its roles, never its letters.
 
 [nodes.RX1]
 roles = "receiving"
@@ -60,8 +65,14 @@ roles = "receiving"
 [nodes.RX2]
 roles = "receiving"
 
-[nodes.PX1]
+[nodes.RX3]
+roles = "receiving"
+
+[nodes.EX1]
 roles = "processing"
+
+[nodes.EX2]
+roles = "executing"
 
 [nodes.TX1]
 roles = "sending"
@@ -69,8 +80,8 @@ roles = "sending"
 [nodes.TX2]
 roles = "sending"
 
-[nodes.EX1]
-roles = "executing"
+[nodes.TX3]
+roles = "sending"
 
 [nodes.OP1]
 roles = "operational, monitoring"
@@ -136,8 +147,8 @@ identities = [
 
 # The Work Process unit "Order approval" is: `order-approval.bpmn` beside
 # this file, compiled by `process::generate` into the example
-# `order_approval`, which the run builds and copies beside each node that
-# serves the process stage. The entry is the generator's, as written: its
+# `order_approval`, which the run builds and copies beside each node the
+# placement runs it on. The entry is the generator's, as written: its
 # library named by the module, and each node names the file as its own
 # system does (`xmip_module.h` section 1), so this one file serves Windows
 # and Linux nodes alike.
@@ -183,6 +194,17 @@ offline = true
 # show from the configuration (the owner, 2026-10-13). An operator pauses
 # and resumes these Subscriptions in the Subscriptions view (ADR-0013,
 # amendment 2026-09-30); they are added and removed here, and nowhere else.
+#
+# Where each runs is placed, never written here (`configure::placed`): each
+# Receive Location goes to the next node serving Receive and each Send Port
+# to the next serving Send, round robin, a Work Process to every node
+# serving its stage. Listed as they are, the executing node takes the
+# remittance advices and the inventory reports and sends them on itself,
+# each received and sent in one node; the sales orders pass Order approval,
+# on the processing node and, as every node serving the stage runs it, on
+# the executing node too; every other document goes from a receiving node to
+# a sending node; and every node of the plan takes work (ADR-0028, amendment
+# 2026-11-22).
 
 [[xmip_applications]]
 name = "Order to cash"
@@ -197,6 +219,11 @@ name = "Remittance advices"
 name = "Order to cash documents from ERP"
 
 [[xmip_applications.receive_locations]]
+name = "Remittance advices from Party-E"
+receive_port = "Remittance advices"
+depth = "light"
+
+[[xmip_applications.receive_locations]]
 name = "Sales orders from Party-A"
 receive_port = "Sales orders"
 depth = "light"
@@ -206,11 +233,6 @@ name = "Sales orders from Party-C"
 receive_port = "Sales orders"
 depth = "light"
 
-[[xmip_applications.receive_locations]]
-name = "Remittance advices from Party-E"
-receive_port = "Remittance advices"
-depth = "light"
-
 # The ERP's order responses, dispatch advices and invoices, to the Parties.
 [[xmip_applications.receive_locations]]
 name = "Order to cash documents from ERP"
@@ -218,10 +240,10 @@ receive_port = "Order to cash documents from ERP"
 depth = "light"
 
 [[xmip_applications.send_ports]]
-name = "Sales orders to ERP"
+name = "Remittance advices to ERP"
 
 [[xmip_applications.send_ports]]
-name = "Remittance advices to ERP"
+name = "Sales orders to ERP"
 
 [[xmip_applications.send_ports]]
 name = "Order responses to Party-A"
@@ -292,6 +314,11 @@ name = "Inventory"
 name = "Procure to pay documents from ERP"
 
 [[xmip_applications.receive_locations]]
+name = "Inventory reports from Party-D"
+receive_port = "Inventory"
+depth = "light"
+
+[[xmip_applications.receive_locations]]
 name = "Purchase order responses from Party-B"
 receive_port = "Purchase order responses"
 depth = "light"
@@ -299,11 +326,6 @@ depth = "light"
 [[xmip_applications.receive_locations]]
 name = "Goods receipts from Party-C"
 receive_port = "Goods receipts"
-depth = "light"
-
-[[xmip_applications.receive_locations]]
-name = "Inventory reports from Party-D"
-receive_port = "Inventory"
 depth = "light"
 
 # The ERP's purchase orders, item master and payments, to the Parties.
@@ -319,10 +341,10 @@ name = "Purchase order responses to ERP"
 name = "Goods receipts to ERP"
 
 [[xmip_applications.send_ports]]
-name = "Inventory reports to ERP"
+name = "Purchase orders to Party-B"
 
 [[xmip_applications.send_ports]]
-name = "Purchase orders to Party-B"
+name = "Inventory reports to ERP"
 
 [[xmip_applications.send_ports]]
 name = "Item master to Party-D"

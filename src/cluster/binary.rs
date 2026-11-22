@@ -1,5 +1,6 @@
-//! Where the executables a run spawns are: the cluster the roll starts, and
-//! the node the cluster starts.
+//! Where the executables a run spawns are: the cluster the roll starts, the
+//! node the cluster starts, and the far ends outside the cluster the roll
+//! starts beside the nodes it runs as `xmip-service`.
 //!
 //! 2026-09-19, the owner: *even clusters have to be spawned as processes
 //! during tests*, so there are two to find rather than one. Both are looked
@@ -30,6 +31,17 @@ pub fn node_binary() -> io::Result<PathBuf> {
 /// When neither is a file.
 pub fn cluster_binary() -> io::Result<PathBuf> {
     found("XMIP_ESSENTIALS_CLUSTER_BINARY", "xmip-essentials-cluster")
+}
+
+/// The `xmip-essentials-external` binary, which the roll starts once for
+/// each far end outside the cluster (`crate::external`), found the same
+/// way: `XMIP_ESSENTIALS_EXTERNAL` if set.
+///
+/// # Errors
+///
+/// When neither is a file.
+pub fn external_binary() -> io::Result<PathBuf> {
+    found("XMIP_ESSENTIALS_EXTERNAL", "xmip-essentials-external")
 }
 
 /// The executable called `stem`: what `variable` names, else beside the
