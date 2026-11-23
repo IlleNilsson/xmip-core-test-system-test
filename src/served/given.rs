@@ -51,7 +51,7 @@ pub(super) fn placed(
 }
 
 /// The cluster's file as the run gives it to the nodes it starts: the
-/// Essentials' own with the `bindings` the run placed, each node's roles as
+/// System Tests' own with the `bindings` the run placed, each node's roles as
 /// the run declares them, each Storage node's name resolved to the address
 /// on loopback it serves at, each node its own data folder, its local
 /// endpoint named for the run's cluster, its operate listener on
@@ -127,7 +127,7 @@ pub(super) fn cluster_text(
         // browser's own certificate (ADR-0009, amendment 2026-11-01). The
         // tester operates each node by name (amendment 2026-11-07): on its
         // local endpoint by the account it runs as, and in the browser by
-        // the operator certificate the Essentials' authority signed it.
+        // the operator certificate the System Tests' authority signed it.
         operate.insert(
             "relay".to_string(),
             Value::Array(vec![Value::String(tester.clone())]),
@@ -141,7 +141,7 @@ pub(super) fn cluster_text(
     toml::to_string(&file).map_err(|error| format!("the cluster's file: {error}"))
 }
 
-/// The testers: every person whose operator certificate the Essentials'
+/// The testers: every person whose operator certificate the System Tests'
 /// authority signed and still stands — the one `New-XmipCertificate
 /// -Request` has signed for the tester before the web host starts — each
 /// `CN=<person>`, as `Start-XmipOperationWeb -Tester` names the tester to
@@ -155,7 +155,7 @@ fn testers() -> Result<Vec<String>, String> {
     let register = provision::register::Register::at(&crate::environment::authority());
     let records = register
         .records()
-        .map_err(|error| format!("the Essentials' authority: {error}"))?;
+        .map_err(|error| format!("the System Tests' authority: {error}"))?;
     Ok(records
         .into_iter()
         .filter(|record| record.purpose == provision::Purpose::Operator.word())
@@ -189,7 +189,7 @@ pub fn endpoint(cluster: &str, node: &str) -> String {
 }
 
 /// `node`'s configuration, sliced from `text` under `cluster` into a folder
-/// of its own in `area`, with its certificate from the Essentials'
+/// of its own in `area`, with its certificate from the System Tests'
 /// authority (`environment::authority`) beside it: the configuration's
 /// path.
 pub(super) fn configured(
@@ -205,7 +205,7 @@ pub(super) fn configured(
     let authority = crate::environment::authority();
     let name = authority_name(&authority)?;
     let issuer = provision::host::authority(&authority, &name, now)
-        .map_err(|error| format!("the Essentials' authority: {error}"))?;
+        .map_err(|error| format!("the System Tests' authority: {error}"))?;
     runtime::signed::delivered(&path, &issuer, text, &sliced)?;
     unit_placed(&path, &folder)?;
     provision::node::issue_into(
@@ -220,13 +220,13 @@ pub(super) fn configured(
     Ok(path)
 }
 
-/// The Essentials' Work Process unit copied beside the node's configuration
+/// The System Tests' Work Process unit copied beside the node's configuration
 /// at `path`, in `folder`, where the node opens it: where a Work Process it
 /// starts, its own or one its bindings give it, names the unit's module,
 /// read as the node reads its slice (`runtime::start::read`, the execution
 /// tree's `modules_to_start`), as an environment carries a module's library
 /// to a machine's node. It is taken from beside the run's own program,
-/// where the Essentials' build put it (`Invoke-XmipEssentialsBuild`), or a
+/// where the System Tests' build put it (`Invoke-XmipSystemTestBuild`), or a
 /// test's, where cargo test built it. A slice the runtime does not build a
 /// tree of is left to its node, which refuses it in its own words.
 ///
@@ -249,7 +249,7 @@ fn unit_placed(path: &Path, folder: &Path) -> Result<(), String> {
     let built = file::built::found(Path::new("examples").join(&file)).ok_or_else(|| {
         format!(
             "the Work Process unit {file} was not built: Start-XmipTest builds it, \
-             cargo build --example order_approval in test/core/essentials"
+             cargo build --example order_approval in test/core/system-test"
         )
     })?;
     std::fs::copy(&built, folder.join(&file))
@@ -257,8 +257,8 @@ fn unit_placed(path: &Path, folder: &Path) -> Result<(), String> {
         .map_err(|error| format!("{} beside {}: {error}", built.display(), folder.display()))
 }
 
-/// The name the Essentials' authority kept in `place` was made under, read
-/// from its certificate: `Initialize-XmipEssentialsAuthority` alone names
+/// The name the System Tests' authority kept in `place` was made under, read
+/// from its certificate: `Initialize-XmipSystemTestAuthority` alone names
 /// it, and makes it before a run starts any node.
 ///
 /// # Errors
@@ -268,7 +268,7 @@ fn authority_name(place: &Path) -> Result<String, String> {
     let path = place.join(provision::issuer::CERTIFICATE);
     let text = std::fs::read_to_string(&path).map_err(|error| {
         format!(
-            "no Essentials authority at {}: {error}; Start-XmipTest makes it",
+            "no System Tests authority at {}: {error}; Start-XmipTest makes it",
             path.display()
         )
     })?;
@@ -277,7 +277,7 @@ fn authority_name(place: &Path) -> Result<String, String> {
         .map_err(|error| format!("{}: {error}", path.display()))?
         .ok_or_else(|| {
             format!(
-                "the Essentials' authority at {} names nothing",
+                "the System Tests' authority at {} names nothing",
                 path.display()
             )
         })
@@ -288,10 +288,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn two_runs_issue_their_nodes_under_the_one_essentials_authority() {
+    fn two_runs_issue_their_nodes_under_the_one_system_test_authority() {
         // A node that keeps Xmip Storage and one covering every stage beside
         // it, which works alone (ADR-0056, amendment 2026-11-22), as the
-        // Essentials' own file declares them, and the test cluster's name.
+        // System Tests' own file declares them, and the test cluster's name.
         let roles = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
         let storage = |node: &&(String, Capability)| node.1.roles().contains(&NodeRole::Storage);
         let declared: Vec<(String, Capability)> = [
@@ -306,7 +306,7 @@ mod tests {
         let now = observe::now_unix_nanos() / 1_000_000_000;
         let issuer = provision::Issuer::kept_or_made(
             &crate::environment::authority(),
-            "Xmip Essentials test authority",
+            "Xmip System Tests test authority",
             now,
             3600,
         )
@@ -329,7 +329,7 @@ mod tests {
             }
         }
         let authority = crate::environment::authority().join(provision::issuer::CERTIFICATE);
-        let kept = std::fs::read(authority).expect("the Essentials' authority");
+        let kept = std::fs::read(authority).expect("the System Tests' authority");
         assert!(
             anchors.iter().all(|anchor| *anchor == kept),
             "one authority for every run"
@@ -402,7 +402,7 @@ mod tests {
         }
     }
 
-    /// The Essentials' Work Process unit is beside each node of a run that
+    /// The System Tests' Work Process unit is beside each node of a run that
     /// opens it, the nodes the placement runs the Work Process on, and
     /// beside no other: the run gives a node what its own reading of its
     /// slice starts.
@@ -420,7 +420,7 @@ mod tests {
         let now = observe::now_unix_nanos() / 1_000_000_000;
         provision::Issuer::kept_or_made(
             &crate::environment::authority(),
-            "Xmip Essentials test authority",
+            "Xmip System Tests test authority",
             now,
             3600,
         )
@@ -448,7 +448,7 @@ mod tests {
         );
     }
 
-    /// The owner's node plan, 2026-11-22, held over the Essentials' own
+    /// The owner's node plan, 2026-11-22, held over the System Tests' own
     /// files as a run places them, every node found by what it declares:
     /// every node serving a stage takes work; the Work Process runs on every
     /// processing node; an executing node receives documents and
@@ -457,7 +457,7 @@ mod tests {
     /// node that receives within as many rounds as there are senders; and
     /// each receiver is reached by an executing node and a sending one.
     #[test]
-    fn the_essentials_files_put_every_node_and_far_end_of_the_plan_to_work() {
+    fn the_system_test_files_put_every_node_and_far_end_of_the_plan_to_work() {
         use crate::external::{FILE, named, sender};
         use configure::placed::far_ends::far_end_of;
         use std::collections::BTreeSet;

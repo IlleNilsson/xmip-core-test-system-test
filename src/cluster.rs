@@ -7,12 +7,12 @@
 //! binary per node beside the current executable, each told the tests that
 //! were named and every node's name, all over one shared directory, so the
 //! contention and the handoffs are between processes, and each publishing its
-//! own snapshot file. 2026-09-19, the owner: what the Essentials spawns is a
+//! own snapshot file. 2026-09-19, the owner: what the System Tests spawn is a
 //! cluster and its nodes; the word this file was named for until then is
 //! retired.
 //!
 //! 2026-09-19, the owner again: *even clusters have to be spawned as processes
-//! during tests.* This is that process's library. `xmip-essentials-cluster`
+//! during tests.* This is that process's library. `xmip-system-test-cluster`
 //! (`src/bin/cluster.rs`) is a [`Cluster`] and nothing else; the roll holds it
 //! from outside as a [`Spawned`] and reads the one file it publishes.
 //!
@@ -160,7 +160,7 @@ impl Cluster {
         Command::new(image)
             // The cluster the node's scope root is, said rather than
             // inherited.
-            .env("XMIP_ESSENTIALS_CLUSTER", &orders.cluster)
+            .env("XMIP_SYSTEM_TEST_CLUSTER", &orders.cluster)
             .args(["--name", name, "--stress", orders.stress.name()])
             .args(["--rounds", &orders.rounds.to_string()])
             .args([

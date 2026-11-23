@@ -1,6 +1,6 @@
 //! A far end on a machine of its own (the owner's node plan, 2026-11-22: the
 //! far ends on six machines of their own in Hyper-V): the service
-//! `xmip-essentials-external --serve` runs as there, waiting for the roll.
+//! `xmip-system-test-external --serve` runs as there, waiting for the roll.
 //! The roll reaches it over Xmip's mutual TLS on [`CONTROL_PORT`], the far
 //! end presenting the certificate the cluster's authority issued it and
 //! asking the roll for one of the same authority, and tells it what it is
@@ -319,9 +319,9 @@ pub fn install(name: &str, folder: &Path) -> Result<String, String> {
     let configuration = folder.display().to_string();
     let service = ServiceDefinition {
         name: node_service_name(name),
-        display_name: format!("Xmip Essentials far end ({name})"),
+        display_name: format!("Xmip System Tests far end ({name})"),
         description: format!(
-            "The Essentials' far end {name}: serves the roll's sessions on port \
+            "The System Tests' far end {name}: serves the roll's sessions on port \
              {CONTROL_PORT}, and a receiver's Send Ports on {FAR_END_PORT}."
         ),
         executable: executable.display().to_string(),

@@ -1,6 +1,6 @@
 //! Carried: the rig is the Parties and the company's ERP, trading real
 //! documents through the cluster's configured flows (the owner, 2026-11-10:
-//! *Do your Essentials test, promotion thing*; ADR-0028, amendments
+//! *Do your [System Tests] test, promotion thing*; ADR-0028, amendments
 //! 2026-10-22 and 2026-11-11). Each round it drops into each Receive
 //! Location placed (`configure::placed`) the next of that Location's own
 //! documents (`documents.rs`), named `<document>-<n>.edi`. The node routes it

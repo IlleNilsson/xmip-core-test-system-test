@@ -1,11 +1,11 @@
 //! The documents the Parties and the company's ERP trade, as real trading
-//! Parties send them (the owner, 2026-11-10: *Do your Essentials test,
+//! Parties send them (the owner, 2026-11-10: *Do your [System Tests] test,
 //! promotion thing*; ADR-0028, amendment 2026-11-11): UN/EDIFACT
 //! interchanges of the latest published directory, D.24A — orders, order
 //! responses, dispatch advices, invoices, remittance advices, receiving
 //! advices, inventory reports, price catalogues and multiple payment
 //! orders — written by hand, each Party's own ids in its interchange header
-//! and the company's `ESSENTIALS`.
+//! and the company's `SYSTEM-TEST`.
 //!
 //! They are data, not code: `documents/<Location>/` holds each Receive
 //! Location's own, the folder named as `configure::placed::Placement::folded`
@@ -63,7 +63,7 @@ pub fn shipped_folder() -> PathBuf {
 }
 
 impl Documents {
-    /// The documents shipped with the Essentials, and the Subscriptions of
+    /// The documents shipped with the System Tests, and the Subscriptions of
     /// its cluster file.
     ///
     /// # Errors
@@ -82,7 +82,7 @@ impl Documents {
     pub fn read(folder: &Path, cluster: &str) -> Result<Self, String> {
         let refused = |what: &Path, error: std::io::Error| {
             format!(
-                "REFUSED: the Essentials' documents, {}: {error}",
+                "REFUSED: the System Tests' documents, {}: {error}",
                 what.display()
             )
         };
@@ -111,7 +111,7 @@ impl Documents {
             by_folder.insert(name, documents);
         }
         let applications = configure::applications(cluster)?;
-        // What each Work Process whose unit is the Essentials' own assigns
+        // What each Work Process whose unit is the System Tests' own assigns
         // before it publishes, so a document is followed through it.
         let assigned = crate::order_approval::assignments()?;
         let processes: Vec<(String, Vec<Assignment>)> = applications
@@ -202,7 +202,7 @@ impl Documents {
     /// The Message the Work Processes publish of `bytes` before a Send Port
     /// takes it, as its context ([`Documents::processed`]) and what the
     /// Subscriptions read of it: what a node that runs no Work Process step
-    /// of its own, as the Essentials' simulated node, publishes in its place
+    /// of its own, as the System Tests' simulated node, publishes in its place
     /// (`crate::subscribing`).
     ///
     /// # Errors
@@ -336,7 +336,7 @@ mod tests {
             .expect("documents")[0];
         let promoted = documents.promoted(&order.bytes).expect("promoted");
         assert_eq!(promoted.get("content:edi:UNH/2/1"), Some("ORDERS"));
-        assert_eq!(promoted.get("content:edi:UNB/3/1"), Some("ESSENTIALS"));
+        assert_eq!(promoted.get("content:edi:UNB/3/1"), Some("SYSTEM-TEST"));
         assert_eq!(documents.routed(&order.bytes), ["Sales orders to ERP"]);
     }
 

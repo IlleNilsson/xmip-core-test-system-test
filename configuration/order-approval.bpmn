@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The Essentials' Work Process: every sales order a Party sends is
+<!-- The System Tests' Work Process: every sales order a Party sends is
      approved before the ERP takes it. Each order is an Instance of its own:
      it is marked approved, a new Message generation, and published back
      through routing, where the cluster's Subscription "Approved sales
@@ -7,7 +7,7 @@
      examples/order_approval.rs, is what process::generate makes of it;
      compile this design again rather than edit that file. -->
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D"
-    targetNamespace="urn:xmip:essentials">
+    targetNamespace="urn:xmip:system-test">
   <bpmn:process id="OrderApproval" isExecutable="true">
     <bpmn:startEvent id="Received"/>
     <bpmn:task id="Approve">

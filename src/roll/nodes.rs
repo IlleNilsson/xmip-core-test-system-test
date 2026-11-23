@@ -14,9 +14,10 @@ use crate::far_end::FarEnd;
 use crate::real::{self, RealNode};
 use crate::served::{self, Served};
 
-/// The run's nodes, sorted: the real ones — a typed name that resolves and
-/// answers, and every other node started as `xmip-service` where the run
-/// was given one, driven through its Receive Locations — their names, the
+/// The run's nodes, sorted: the real ones — on machines, every node of the
+/// run, each having answered; on one computer, every node started as
+/// `xmip-service` where the run was given one, driven through its Receive
+/// Locations — their names, the
 /// roster, and the simulated nodes alone, which are all the cluster process
 /// spawns.
 pub struct Nodes {

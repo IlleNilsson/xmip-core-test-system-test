@@ -41,7 +41,7 @@ use xevent::outcome::Outcome;
 
 use crate::process_audit;
 
-/// The Party that hears a node's Events, as the Essentials declares it: its
+/// The Party that hears a node's Events, as the System Tests declare it: its
 /// identifier and the name an operator reads it by, here and nowhere else.
 #[must_use]
 pub fn operations() -> Party {
@@ -77,8 +77,8 @@ pub struct Eventing {
 
 impl Eventing {
     /// The node at `node` subscribes as the Party its account proves to be,
-    /// which the Essentials, the program hosting the hub, allows by handing
-    /// the hub its policy: being in its process admits nobody (ADR-0065,
+    /// which the System Tests, the program hosting the hub, allow by handing
+    /// the hub their policy: being in their process admits nobody (ADR-0065,
     /// amendment 2026-09-26). A subscription refused is audited as the
     /// failure to `subscribe`, and the node runs on without it.
     #[must_use]
@@ -195,13 +195,13 @@ mod tests {
     #[test]
     fn a_node_publishes_its_event_subscriptions_as_its_hub_holds_them() {
         // Removed once audit's keeper kept what the subscriptions handed it.
-        let shared = Folder::new("essentials-eventing");
+        let shared = Folder::new("system-test-eventing");
         let cluster = crate::support::test_cluster();
         let receiving = &cluster.with_role("receiving").name;
         let node = format!("{}/node/{receiving}", cluster.scope());
         let node = node.as_str();
         let audit = ProgramAudit::new(
-            "xmip-essentials-eventing-test",
+            "xmip-system-test-eventing-test",
             Some(FileSink::new(&*shared)),
         );
         let mut eventing =

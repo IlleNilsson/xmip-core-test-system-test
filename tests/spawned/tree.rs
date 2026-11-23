@@ -2,8 +2,8 @@
 //! spawned as processes during tests*.
 
 use configure::fixture::test_cluster;
-use xmip_core_test_essentials::cluster::{Orders, Spawned};
-use xmip_core_test_essentials::{Roster, Stress};
+use xmip_core_test_system_test::cluster::{Orders, Spawned};
+use xmip_core_test_system_test::{Roster, Stress};
 
 use crate::{alone, cluster_binary, path, path_roster, scratch};
 

@@ -48,7 +48,7 @@ impl Spawned {
     /// `path`, spawning the nodes `orders` names.
     ///
     /// The cluster's scope root is `xmip:///<cluster>`, which it reads from
-    /// `XMIP_ESSENTIALS_CLUSTER` as its nodes do, so it is set on the child
+    /// `XMIP_SYSTEM_TEST_CLUSTER` as its nodes do, so it is set on the child
     /// here and inherited all the way down.
     ///
     /// # Errors
@@ -62,13 +62,13 @@ impl Spawned {
         path: &Path,
     ) -> io::Result<Self> {
         std::fs::create_dir_all(shared)?;
-        // The image says which cluster this is: xmip-essentials-<cluster>-cluster
-        // rather than one more xmip-essentials-cluster row (ADR-0053,
+        // The image says which cluster this is: xmip-system-test-<cluster>-cluster
+        // rather than one more xmip-system-test-cluster row (ADR-0053,
         // amendment 2026-09-20).
         let image = crate::image::of(binary, cluster, "cluster")?;
         let mut command = Command::new(image);
         command
-            .env("XMIP_ESSENTIALS_CLUSTER", cluster)
+            .env("XMIP_SYSTEM_TEST_CLUSTER", cluster)
             .args(["--name", cluster, "--stress", orders.stress.name()])
             // Each node with what it was declared with, never its name alone.
             .args(["--nodes", &orders.roster.text()])

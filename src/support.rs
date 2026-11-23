@@ -4,7 +4,7 @@
 //! observe's, `observe::now_unix_nanos`.
 
 /// The cluster a roll is (ADR-0028), by the name the owner gave it in
-/// `XMIP_ESSENTIALS_CLUSTER`; `None` when nobody named one. A test may spawn
+/// `XMIP_SYSTEM_TEST_CLUSTER`; `None` when nobody named one. A test may spawn
 /// nodes, never a cluster (the owner, 2026-09-14; ADR-0052), so the binaries
 /// refuse to start without a name rather than inventing one. A roll's nodes
 /// inherit the variable, so the roll and every node agree on the root without
@@ -12,7 +12,7 @@
 /// name its `cluster.xmip` gives it.
 #[must_use]
 pub fn cluster_name() -> Option<String> {
-    std::env::var("XMIP_ESSENTIALS_CLUSTER")
+    std::env::var("XMIP_SYSTEM_TEST_CLUSTER")
         .ok()
         .map(|name| name.trim().to_string())
         .filter(|name| !name.is_empty())
@@ -74,7 +74,7 @@ pub(crate) fn three(dir: &std::path::Path) -> Vec<Box<dyn crate::exchange::Round
 /// A fresh, empty folder of a test's own, removed when it is dropped.
 #[cfg(test)]
 pub(crate) fn scratch(name: &str) -> file::temporary::Folder {
-    file::temporary::Folder::new(&format!("essentials-{name}"))
+    file::temporary::Folder::new(&format!("system-test-{name}"))
 }
 
 /// The test cluster, what every test takes its cluster's and its nodes'
@@ -140,7 +140,7 @@ pub(crate) fn files_whole(cabinet: &dyn crate::cabinet::Cabinet) {
             data_type: "bytes".to_string(),
             identifier: format!("{n}-bytes"),
             bytes,
-            metadata: vec![("source".to_string(), "essentials".to_string())],
+            metadata: vec![("source".to_string(), "system-test".to_string())],
         };
         assert_eq!(
             cabinet.file(item.clone()),

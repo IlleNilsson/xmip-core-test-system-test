@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use file::temporary::Folder;
 use observe::{Health, Snapshot, now_unix_nanos};
-use xmip_core_test_essentials::heartbeat::{self, Beat};
-use xmip_core_test_essentials::{Cluster, Stress, cluster_root};
+use xmip_core_test_system_test::heartbeat::{self, Beat};
+use xmip_core_test_system_test::{Cluster, Stress, cluster_root};
 
 use crate::nodes::{first, orders};
 use crate::{alone, node_binary, scratch, snapshot_record};

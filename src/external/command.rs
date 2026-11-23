@@ -1,4 +1,4 @@
-//! A far end's command line, `xmip-essentials-external`'s
+//! A far end's command line, `xmip-system-test-external`'s
 //! (`src/bin/external.rs`): its name and what it was started to do — on one
 //! computer a sender or a receiver, on a machine of its own the service
 //! that serves, its registration, or the ports it serves on. Split from

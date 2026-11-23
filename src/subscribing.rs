@@ -1,8 +1,8 @@
 //! A node's Subscriptions (ADR-0013, amendments 2026-09-30 and 2026-10-03),
 //! taken up from the TOML configuration it binds, as a real node takes them.
 //!
-//! The Essentials' `RoundTrip` test runs the Xmip Applications held as
-//! sections of the Essentials' cluster configuration,
+//! The System Tests' `RoundTrip` test runs the Xmip Applications held as
+//! sections of the System Tests' cluster configuration,
 //! `configuration/cluster.xmip` — business flows an ERP runs with its Parties —
 //! each Subscription picking up one kind of document by its message type and
 //! recipient and routing it to a Send Port the send stage serves (ADR-0028,
@@ -65,7 +65,7 @@ use crate::handoff::Handoff;
 use crate::roster::Roster;
 use crate::schedule::CONTRACTS;
 
-/// The Essentials' cluster configuration, as this repository ships it: the
+/// The System Tests' cluster configuration, as this repository ships it: the
 /// `RoundTrip` Application's section.
 pub const CLUSTER: &str = include_str!("../configuration/cluster.xmip");
 
@@ -172,7 +172,7 @@ impl Subscribing {
         let document = self
             .relayed
             .get(round % self.relayed.len().max(1))
-            .ok_or("REFUSED: the Essentials ship no document to publish a pair as")?;
+            .ok_or("REFUSED: the System Tests ship no document to publish a pair as")?;
         // No Work Process step runs here: the node publishes the Message a
         // Work Process would (`Documents::published`; xmip-service runs it).
         let (context, promoted) = self.documents.published(&document.bytes)?;
@@ -464,7 +464,7 @@ mod tests {
     fn the_configured_subscriptions_route_hold_while_paused_and_survive_a_restart() {
         let shared = scratch("subscribing");
         let audit = ProgramAudit::new(
-            "xmip-essentials-subscribing-test",
+            "xmip-system-test-subscribing-test",
             Some(FileSink::new(&*shared)),
         );
         let subscribing = started(&shared, &audit);

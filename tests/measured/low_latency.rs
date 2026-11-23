@@ -9,7 +9,7 @@
 use std::path::Path;
 
 use observe::{Health, Snapshot};
-use xmip_core_test_essentials::{
+use xmip_core_test_system_test::{
     FileRoundTrip, LowLatency, RoundTrip, Stress, TcpRoundTrip, UdpRoundTrip, cluster_root,
 };
 

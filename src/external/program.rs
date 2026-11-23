@@ -1,11 +1,11 @@
-//! What one far end does, as `xmip-essentials-external` runs it
+//! What one far end does, as `xmip-system-test-external` runs it
 //! (`src/bin/external.rs`), and the lines it and the roll say to each other,
 //! each written and read here alone.
 //!
 //! - **A sender** reads an [`Order`] a line — the bytes to send, the
 //!   Receive Location's folder and the name it goes by — drops it there as a
 //!   producer that means it whole does, written beside it and renamed in
-//!   (`carried::spot::put`, the one way the Essentials drops a file), and
+//!   (`carried::spot::put`, the one way the System Tests drop a file), and
 //!   answers each with an [`Answer`].
 //! - **A receiver** watches the folders of the Send Ports it is given and,
 //!   as each whole file appears there (`carried::spot::whole`), moves it into

@@ -2,8 +2,8 @@
 //! processes, a cluster as a process, two nodes over one lane, and the far
 //! ends outside the cluster.
 //!
-//! An integration program, so cargo builds `xmip-essentials-node` and
-//! `xmip-essentials-cluster` before it, with the features it was built with,
+//! An integration program, so cargo builds `xmip-system-test-node` and
+//! `xmip-system-test-cluster` before it, with the features it was built with,
 //! and names them in `CARGO_BIN_EXE_<name>`: no test runs cargo. Until
 //! 2026-11-04 these were unit tests that built the binaries themselves, a
 //! second cargo whose features differed from the test's, so each rebuilt the
@@ -37,17 +37,17 @@ fn alone() -> MutexGuard<'static, ()> {
 
 /// The node binary cargo built for this program.
 fn node_binary() -> &'static Path {
-    Path::new(env!("CARGO_BIN_EXE_xmip-essentials-node"))
+    Path::new(env!("CARGO_BIN_EXE_xmip-system-test-node"))
 }
 
 /// The cluster binary cargo built for this program.
 fn cluster_binary() -> &'static Path {
-    Path::new(env!("CARGO_BIN_EXE_xmip-essentials-cluster"))
+    Path::new(env!("CARGO_BIN_EXE_xmip-system-test-cluster"))
 }
 
 /// A fresh, empty folder of a test's own, removed when dropped.
 fn scratch(name: &str) -> Folder {
-    Folder::new(&format!("essentials-spawned-{name}"))
+    Folder::new(&format!("system-test-spawned-{name}"))
 }
 
 /// The test cluster's receiving, processing and sending node, a

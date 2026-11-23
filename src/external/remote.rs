@@ -1,5 +1,5 @@
 //! The far ends on machines of their own, as the roll reaches them: each
-//! the service `xmip-essentials-external --serve` runs as on its machine
+//! the service `xmip-system-test-external --serve` runs as on its machine
 //! (`serving.rs`), found by its own name, as a node is found by its own,
 //! and told over Xmip's mutual TLS with the tester's operator
 //! certificate (`crate::real::operator`).

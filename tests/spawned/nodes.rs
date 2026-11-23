@@ -7,9 +7,9 @@ use std::time::{Duration, Instant};
 use configure::fixture::test_cluster;
 use file::temporary::Folder;
 use observe::{Health, now_unix_nanos};
-use xmip_core_test_essentials::cluster::Orders;
-use xmip_core_test_essentials::heartbeat::{self, Beat};
-use xmip_core_test_essentials::{Cluster, Roster, Stress, cluster_root};
+use xmip_core_test_system_test::cluster::Orders;
+use xmip_core_test_system_test::heartbeat::{self, Beat};
+use xmip_core_test_system_test::{Cluster, Roster, Stress, cluster_root};
 
 use crate::{alone, merge_into, node_binary, path, path_roster, scratch, snapshot_record};
 
@@ -227,7 +227,7 @@ fn a_node_beats_within_milliseconds_of_its_start() {
         .ok();
     let asked = now_unix_nanos();
     let mut child = Command::new(node_binary())
-        .env("XMIP_ESSENTIALS_CLUSTER", &test.name)
+        .env("XMIP_SYSTEM_TEST_CLUSTER", &test.name)
         .args(["--name", name, "--stress", "calm", "--rounds", "0"])
         .args(["--beat-ms", "60000"])
         .arg("--shared")
@@ -266,7 +266,7 @@ fn a_node_told_an_unknown_scenario_is_refused_with_exit_code_two() {
     let name = test.with_role("receiving").name.as_str();
     let snapshot = dir.join(format!("{name}.xmip"));
     let output = Command::new(node_binary())
-        .env("XMIP_ESSENTIALS_CLUSTER", &test.name)
+        .env("XMIP_SYSTEM_TEST_CLUSTER", &test.name)
         .args(["--name", name, "--stress", "calm", "--rounds", "1"])
         .args(["--role", "receiving"])
         .args(["--scenarios", "round-trip,pingpong"])

@@ -1,4 +1,4 @@
-//! The roll's library: what `xmip-essentials-roll` decides, sorts, spawns,
+//! The roll's library: what `xmip-system-test-roll` decides, sorts, spawns,
 //! draws and leaves behind. The program is `src/bin/roll.rs`, which keeps its
 //! `main` and says what a roll does; this is the rest of it, as `cluster.rs`
 //! is the cluster process's.
@@ -114,7 +114,7 @@ pub fn drawn(
 }
 
 /// What this process says of itself while it runs (ADR-0053): the roll is
-/// the test over the cluster it starts, and everything the Essentials runs
+/// the test over the cluster it starts, and everything the System Tests run
 /// is test. Every record from here carries the same location, so a reader
 /// knows whose it is (ADR-0062, amendment 2026-09-29). The declaration
 /// stays while what this answers is held.

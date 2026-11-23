@@ -81,7 +81,7 @@ pub(crate) fn whole(folder: &Path) -> Vec<String> {
 
 /// `bytes` dropped into `folder` as `name` as a producer that means it whole
 /// drops a file: written beside the folder and renamed in, so a Receive
-/// Location never takes half of it. The one way the Essentials drops a
+/// Location never takes half of it. The one way the System Tests drop a
 /// file, the rig's own and a far end's.
 ///
 /// # Errors

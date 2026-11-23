@@ -5,9 +5,9 @@ use std::process::{Child, Command};
 
 use configure::fixture::test_cluster;
 use observe::Health;
-use xmip_core_test_essentials::cluster_root;
-use xmip_core_test_essentials::exclusive_claim::drained;
-use xmip_core_test_essentials::report::node_from_toml;
+use xmip_core_test_system_test::cluster_root;
+use xmip_core_test_system_test::exclusive_claim::drained;
+use xmip_core_test_system_test::report::node_from_toml;
 
 use crate::{alone, node_binary, scratch};
 
@@ -35,7 +35,7 @@ fn two_processes_never_both_claim_the_same_item() {
         .iter()
         .map(|name| {
             Command::new(node_binary())
-                .env("XMIP_ESSENTIALS_CLUSTER", &cluster.name)
+                .env("XMIP_SYSTEM_TEST_CLUSTER", &cluster.name)
                 .args(["--name", name, "--stress", "calm", "--rounds", "4"])
                 .args(["--interval-ms", "0"])
                 .arg("--shared")

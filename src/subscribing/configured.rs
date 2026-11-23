@@ -1,5 +1,5 @@
 //! The node's configuration a process stage reads its Subscriptions from:
-//! the Essentials' cluster configuration with the run's names and the
+//! the System Tests' cluster configuration with the run's names and the
 //! bindings that place every Application on the run's nodes, sliced as
 //! deployment slices it. Split from `subscribing.rs` on 2026-10-13, when the
 //! bindings came to be written from the sections. The file names no
@@ -16,7 +16,7 @@ use configure::placed::{self, Placed};
 use super::CLUSTER;
 use crate::roster::Roster;
 
-/// Write this node's configuration, sliced from the Essentials' cluster
+/// Write this node's configuration, sliced from the System Tests' cluster
 /// configuration with the run's names and the bindings that place every
 /// Application the file designs on the run's nodes (`configure::placed`) — each Receive Location
 /// on the first node that declared receive, each Send Port on the first
@@ -86,7 +86,7 @@ pub(super) fn configured(
         accepting: false,
     });
     let file =
-        format!("{CLUSTER}\n{bound}\n[nodes.{name}.service]\nname = \"xmip-essentials-{name}\"\n");
+        format!("{CLUSTER}\n{bound}\n[nodes.{name}.service]\nname = \"xmip-system-test-{name}\"\n");
     let text = configure::slice_named(&file, name, cluster)?;
     let path = directory.join(format!("{name}.node.xmip"));
     let signed = runtime::signed::signed_beside(&path, cluster, &file, &text)?;

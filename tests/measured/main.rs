@@ -1,5 +1,5 @@
 //! The crate's timing program (`doc/governance/rust-style.md` section 5c):
-//! the Essentials' own machinery held to the millisecond rule. A plain
+//! the System Tests' own machinery held to the millisecond rule. A plain
 //! `cargo test` leaves it out; the landing runs it after every other test
 //! of the crate, alone, one test at a time (`cargo test --test measured
 //! --all-features -- --test-threads=1`), so what is measured is its work and
@@ -16,13 +16,13 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use file::temporary::Folder;
-use xmip_core_test_essentials::cluster::Orders;
-use xmip_core_test_essentials::heartbeat::Heartbeat;
-use xmip_core_test_essentials::{Cluster, Roster, Stress};
+use xmip_core_test_system_test::cluster::Orders;
+use xmip_core_test_system_test::heartbeat::Heartbeat;
+use xmip_core_test_system_test::{Cluster, Roster, Stress};
 
 /// A folder of a test's own, empty, removed when dropped.
 fn scratch(name: &str) -> Folder {
-    Folder::new(&format!("essentials-measured-{name}"))
+    Folder::new(&format!("system-test-measured-{name}"))
 }
 
 /// The owner, 2026-09-26: more than a millisecond, apart from load, is
@@ -39,7 +39,7 @@ fn a_pass_over_idle_nodes_costs_each_under_a_millisecond() {
     let dir = scratch("idle");
     let orders = Orders::of(Stress::Calm, Roster::of(&names), 0).in_cluster(&cluster.name);
     let mut spawned = Cluster::spawn(
-        Path::new(env!("CARGO_BIN_EXE_xmip-essentials-node")),
+        Path::new(env!("CARGO_BIN_EXE_xmip-system-test-node")),
         &orders,
         &dir.join("shared"),
         &dir.join("snapshots"),

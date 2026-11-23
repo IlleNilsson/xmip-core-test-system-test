@@ -131,8 +131,8 @@ impl Ledger {
             }
         }
 
-        // `Counted::Retrying` is deliberately absent: nothing in the Essentials
-        // retries, so there is no number to publish and a published zero would
+        // `Counted::Retrying` is deliberately absent: nothing in the System Tests
+        // retry, so there is no number to publish and a published zero would
         // say *none retried* where the truth is *nobody counts*. A figure the
         // publisher does not carry is a dash on every surface, which is what
         // this is. The owner, 2026-09-20, looked for T and F in a run that had

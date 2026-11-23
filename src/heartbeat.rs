@@ -15,7 +15,7 @@
 //! small write. Whether a round is done decides nothing about whether the
 //! node is alive.
 //!
-//! The beat is the Essentials': the cluster reads it, no surface does.
+//! The beat is the System Tests': the cluster reads it, no surface does.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};

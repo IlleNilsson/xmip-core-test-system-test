@@ -1,11 +1,11 @@
 //! The far ends outside the cluster: the senders that drop the Parties'
 //! documents into the Receive Locations and the receivers that take what the
 //! Send Ports deliver, each a process of its own (the owner's node plan,
-//! 2026-11-22: *the Essentials' far ends, processes of their own*; ADR-0028
+//! 2026-11-22: *the [System Tests'] far ends, processes of their own*; ADR-0028
 //! clause 2 and amendment 2026-11-22). They are named in
 //! `configuration/external.xmip`, never in code, and each runs the program
-//! `xmip-essentials-external`: on one computer from an image of its own,
-//! `xmip-essentials-<cluster>-external-<name>` (ADR-0053), told through its
+//! `xmip-system-test-external`: on one computer from an image of its own,
+//! `xmip-system-test-<cluster>-external-<name>` (ADR-0053), told through its
 //! input; on a machine of its own as the service it serves as there
 //! ([`serving`]), told over Xmip's mutual TLS ([`remote`]).
 //!

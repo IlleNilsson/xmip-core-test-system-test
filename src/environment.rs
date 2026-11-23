@@ -1,6 +1,6 @@
 //! The roll's environment: every switch a roll reads, as the variable it
 //! reads it from. The variables are external names and keep the prefix
-//! (ADR-0030); `Xmip/New-XmipEssentialsEnvironment.ps1` sets them, and
+//! (ADR-0030); `Xmip/New-XmipSystemTestEnvironment.ps1` sets them, and
 //! `test/XmipTest.Test.ps1` holds that file against this one, so a switch the
 //! roll reads is a switch an operator can reach.
 
@@ -11,14 +11,14 @@ use crate::roster::Roster;
 use crate::scenario;
 use crate::switch::node_is_online;
 
-/// The scenarios named in `XMIP_ESSENTIALS_SCENARIOS`: none named is every
+/// The scenarios named in `XMIP_SYSTEM_TEST_SCENARIOS`: none named is every
 /// one.
 ///
 /// # Errors
 ///
 /// When a name is no scenario, as [`scenario::chosen`] refuses it.
 pub fn scenarios() -> Result<Vec<String>, String> {
-    let raw = std::env::var("XMIP_ESSENTIALS_SCENARIOS").ok();
+    let raw = std::env::var("XMIP_SYSTEM_TEST_SCENARIOS").ok();
     scenario::chosen(raw.as_deref())
 }
 
@@ -72,61 +72,56 @@ pub fn cluster_file() -> Result<(PathBuf, String), String> {
 }
 
 /// The `xmip-service` a roll starts each node it does not simulate as,
-/// `XMIP_ESSENTIALS_SERVICE`, which `Start-XmipTest` builds and sets: every
+/// `XMIP_SYSTEM_TEST_SERVICE`, which `Start-XmipTest` builds and sets: every
 /// node of the run then a process of the assembled service, reaching Xmip
 /// Storage over the wire as on machines of its own (ADR-0028, amendment
 /// 2026-10-22). `None` where nothing named one, and every node not real is
 /// simulated as before.
 #[must_use]
 pub fn service() -> Option<PathBuf> {
-    std::env::var_os("XMIP_ESSENTIALS_SERVICE")
+    std::env::var_os("XMIP_SYSTEM_TEST_SERVICE")
         .filter(|named| !named.is_empty())
         .map(PathBuf::from)
 }
 
-/// The nodes the operator typed, `-Nodes`, from `XMIP_ESSENTIALS_NAMED`,
-/// comma separated: the only node names a roll resolves to find a real
-/// node (ADR-0028, amendments 2026-09-19 and 2026-10-21). Unset or empty,
-/// no node was typed — the run took the cluster file's — and none is
-/// resolved.
+/// Whether the run is the Systems Tests, on an environment's machines:
+/// `XMIP_SYSTEM_TEST_MACHINES` is `true`, which `Start-XmipTest -Suite
+/// Core.Systems` sets. Every node of the run is then a machine that answers
+/// as that node, and none is spawned in its place; unset, the run is the
+/// System Tests and no name is resolved (ADR-0028, amendment 2026-11-23).
+/// The suite says which, never a name.
 #[must_use]
-pub fn named() -> Vec<String> {
-    std::env::var("XMIP_ESSENTIALS_NAMED")
-        .unwrap_or_default()
-        .split(',')
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map(str::to_string)
-        .collect()
+pub fn machines() -> bool {
+    std::env::var("XMIP_SYSTEM_TEST_MACHINES").is_ok_and(|said| said.trim() == "true")
 }
 
 /// The folder of the operator certificate a roll asks a real node with,
-/// `XMIP_ESSENTIALS_CERTIFICATE`, which `Start-XmipTest -Certificate` sets:
+/// `XMIP_SYSTEM_TEST_CERTIFICATE`, which `Start-XmipTest -Certificate` sets:
 /// `operator.pem`, the chain the cluster's authority signed, `operator.key`
 /// and `anchors.pem`, that authority. `None` where nothing named one.
 #[must_use]
 pub fn certificate() -> Option<PathBuf> {
-    std::env::var_os("XMIP_ESSENTIALS_CERTIFICATE")
+    std::env::var_os("XMIP_SYSTEM_TEST_CERTIFICATE")
         .filter(|named| !named.is_empty())
         .map(PathBuf::from)
 }
 
-/// The directory a roll publishes in: `XMIP_ESSENTIALS_AREA`, where
+/// The directory a roll publishes in: `XMIP_SYSTEM_TEST_AREA`, where
 /// `Start-XmipTest` keeps the run, else the temp directory.
 #[must_use]
 pub fn publish_area() -> PathBuf {
-    std::env::var_os("XMIP_ESSENTIALS_AREA")
+    std::env::var_os("XMIP_SYSTEM_TEST_AREA")
         .filter(|named| !named.is_empty())
         .map_or_else(std::env::temp_dir, PathBuf::from)
 }
 
-/// The Essentials' own certificate authority, `authority` in the area a
-/// roll publishes in: the one `Get-XmipEssentialsLayout` names, which the
+/// The System Tests' own certificate authority, `authority` in the area a
+/// roll publishes in: the one `Get-XmipSystemTestLayout` names, which the
 /// web host is served under and a tester's operator certificate is signed
 /// by. The nodes a run starts are issued under it too, so it outlives the
 /// run, and a phone or browser that trusts it keeps trusting the next run's
 /// nodes (ADR-0028, amendment 2026-10-27). `Start-XmipTest` makes it, as
-/// `Initialize-XmipEssentialsAuthority`, before the run starts any node.
+/// `Initialize-XmipSystemTestAuthority`, before the run starts any node.
 #[must_use]
 pub fn authority() -> PathBuf {
     publish_area().join("authority")
@@ -135,7 +130,7 @@ pub fn authority() -> PathBuf {
 /// Where the roll of `cluster` publishes its snapshot, history and activity
 /// in `area`: `<cluster>-snapshot.xmip`, `-history.toml` and
 /// `-activity.toml`. The one place the names are decided; `Start-XmipTest`
-/// asks `xmip-essentials-roll --publication <cluster> <area>` rather than
+/// asks `xmip-system-test-roll --publication <cluster> <area>` rather than
 /// naming them again.
 #[must_use]
 pub fn publish_paths(cluster: &str, area: &Path) -> (PathBuf, PathBuf, PathBuf) {
@@ -147,25 +142,25 @@ pub fn publish_paths(cluster: &str, area: &Path) -> (PathBuf, PathBuf, PathBuf) 
 }
 
 /// Where the per-instance images of this run go, from
-/// `XMIP_ESSENTIALS_IMAGES`: the device-local directory a cluster's roll, its
+/// `XMIP_SYSTEM_TEST_IMAGES`: the device-local directory a cluster's roll, its
 /// cluster process and its nodes are linked into, so each runs under a name
 /// that says which cluster and which node it is (ADR-0053, amendment
 /// 2026-09-20). `None` where nothing named one, and then nothing is linked and
 /// every process keeps the binary's own name.
 #[must_use]
 pub fn image_directory() -> Option<PathBuf> {
-    std::env::var_os("XMIP_ESSENTIALS_IMAGES")
+    std::env::var_os("XMIP_SYSTEM_TEST_IMAGES")
         .filter(|named| !named.is_empty())
         .map(PathBuf::from)
 }
 
-/// The `HeavyLoad` payload size: `XMIP_ESSENTIALS_LOAD_BYTES` if set — a
+/// The `HeavyLoad` payload size: `XMIP_SYSTEM_TEST_LOAD_BYTES` if set — a
 /// plain number or a human size like `512mb` or `2gb` — else a megabyte. Note
 /// the memory: peak is roughly twice this per pair, so a gigabyte wants a few
 /// free.
 #[must_use]
 pub fn load_bytes() -> usize {
-    let Some(raw) = std::env::var("XMIP_ESSENTIALS_LOAD_BYTES").ok() else {
+    let Some(raw) = std::env::var("XMIP_SYSTEM_TEST_LOAD_BYTES").ok() else {
         return 1024 * 1024;
     };
     let text = raw.trim().to_lowercase();
@@ -184,18 +179,18 @@ pub fn load_bytes() -> usize {
         .map_or(1024 * 1024, |value| value.saturating_mul(scale))
 }
 
-/// The maximum wall-clock time to roll: `XMIP_ESSENTIALS_MAX_SECONDS` if set,
+/// The maximum wall-clock time to roll: `XMIP_SYSTEM_TEST_MAX_SECONDS` if set,
 /// else no ceiling.
 #[must_use]
 pub fn max_seconds() -> Option<Duration> {
-    std::env::var("XMIP_ESSENTIALS_MAX_SECONDS")
+    std::env::var("XMIP_SYSTEM_TEST_MAX_SECONDS")
         .ok()
         .and_then(|raw| raw.trim().parse::<f64>().ok())
         .filter(|seconds| *seconds > 0.0)
         .map(Duration::from_secs_f64)
 }
 
-/// Whether the run declared itself hidden: `XMIP_ESSENTIALS_HIDDEN` is
+/// Whether the run declared itself hidden: `XMIP_SYSTEM_TEST_HIDDEN` is
 /// `true`, which `Start-XmipTest -Hidden` sets for an assistant's test run
 /// (the owner, 2026-09-29; ADR-0028, amendment 2026-09-30). The roll, its
 /// cluster and every node read it — a child inherits it — and say it in the
@@ -203,14 +198,14 @@ pub fn max_seconds() -> Option<Duration> {
 /// a surface leaves the run out by what it declared, never by its name.
 #[must_use]
 pub fn hidden() -> bool {
-    std::env::var("XMIP_ESSENTIALS_HIDDEN").is_ok_and(|said| said.trim() == "true")
+    std::env::var("XMIP_SYSTEM_TEST_HIDDEN").is_ok_and(|said| said.trim() == "true")
 }
 
-/// The factor on time: `XMIP_ESSENTIALS_TIME_FACTOR` if set, else `1.0` (real
+/// The factor on time: `XMIP_SYSTEM_TEST_TIME_FACTOR` if set, else `1.0` (real
 /// time). Below one runs faster than real time, above one slower.
 #[must_use]
 pub fn time_factor() -> f64 {
-    std::env::var("XMIP_ESSENTIALS_TIME_FACTOR")
+    std::env::var("XMIP_SYSTEM_TEST_TIME_FACTOR")
         .ok()
         .and_then(|raw| raw.trim().parse::<f64>().ok())
         .unwrap_or(1.0)

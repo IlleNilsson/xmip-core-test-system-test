@@ -1,10 +1,10 @@
 # The far ends outside the cluster, as the owner's node plan of 2026-11-22
 # lays them out: three that send to it and three it sends to (ADR-0028,
-# amendment 2026-11-22). They are the Essentials', never Xmip's: the cluster's
+# amendment 2026-11-22). They are the System Tests', never Xmip's: the cluster's
 # file says what the cluster is, and this one what it trades with, the
 # Parties' documents travelling through them. Where each runs is the
 # environment's, as a node's is: on one computer `Start-XmipTest` starts each
-# as a process of its own, `xmip-essentials-<cluster>-external-<name>`; on a
+# as a process of its own, `xmip-system-test-<cluster>-external-<name>`; on a
 # machine of its own it is the service xmip-<name>, and the roll finds it by
 # its name, as it finds a node by its own. So no far end is named as a node
 # is: the plan's external TX1 to TX3 and RX1 to RX3 are EXTTX1 to EXTRX3, as
@@ -14,7 +14,7 @@
 # into each, so every sender reaches every node that receives. A receiver
 # takes what Send Ports deliver, each Send Port delivering to one, round
 # robin in the order they are placed in, so each is reached by the nodes
-# that send. Rename them here: nothing in the Essentials' code names one.
+# that send. Rename them here: nothing in the System Tests' code names one.
 
 senders = ["EXTTX1", "EXTTX2", "EXTTX3"]
 receivers = ["EXTRX1", "EXTRX2", "EXTRX3"]

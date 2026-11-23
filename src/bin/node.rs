@@ -61,7 +61,7 @@
 //! standing changed, and publishes what its hub holds with its snapshot.
 //!
 //! **It routes by its Subscriptions** (ADR-0013, amendment 2026-09-30;
-//! `subscribing.rs`): a node whose roles serve process binds the Essentials'
+//! `subscribing.rs`): a node whose roles serve process binds the System Tests'
 //! `RoundTrip` Application as a real node binds one, routes what its process
 //! stage hands on through its Subscriptions, and publishes them with its
 //! snapshot. It keeps no operate listener, so no operator acts on it: an
@@ -86,14 +86,14 @@ use std::sync::Arc;
 use observe::Snapshot;
 use observe::publication::write_atomic;
 use xaudit::program_audit::ProgramAudit;
-use xmip_core_test_essentials::eventing::Eventing;
-use xmip_core_test_essentials::node_arguments::{Arguments, USAGE, parse};
-use xmip_core_test_essentials::scenario::{DAILY_BACKLOG, EXCLUSIVE_CLAIM, ROUND_TRIP, drives};
-use xmip_core_test_essentials::subscribing::Subscribing;
-use xmip_core_test_essentials::{
+use xmip_core_test_system_test::eventing::Eventing;
+use xmip_core_test_system_test::node_arguments::{Arguments, USAGE, parse};
+use xmip_core_test_system_test::scenario::{DAILY_BACKLOG, EXCLUSIVE_CLAIM, ROUND_TRIP, drives};
+use xmip_core_test_system_test::subscribing::Subscribing;
+use xmip_core_test_system_test::{
     DailyBacklog, ExclusiveClaim, Heartbeat, Relay, cluster_name, cluster_root, node_toml,
 };
-use xmip_core_test_essentials::{image, process_audit};
+use xmip_core_test_system_test::{image, process_audit};
 
 /// What the node can do, recorded each round: its switch, offline in the
 /// estate's tests, and the capability it declared.
@@ -118,7 +118,7 @@ fn refused_without_cluster(audit: &ProgramAudit) -> Option<ExitCode> {
         return None;
     }
     let problem = "REFUSED: a node is of a cluster, and none is named; the cluster \
-                   that spawns it sets XMIP_ESSENTIALS_CLUSTER.";
+                   that spawns it sets XMIP_SYSTEM_TEST_CLUSTER.";
     process_audit::fail(audit, "start", &format!("node: {problem}"));
     eprintln!("{problem}");
     Some(ExitCode::from(2))
@@ -135,10 +135,10 @@ fn main() -> ExitCode {
         .ok()
         .map(|arguments| Heartbeat::start(&arguments.snapshot, arguments.beat));
 
-    // The name is the image's own — xmip-essentials-<cluster>-node-<node>
+    // The name is the image's own — xmip-system-test-<cluster>-node-<node>
     // where a cluster named it — so the declaration, the audit and the
     // process list agree (ADR-0053, amendment 2026-09-20).
-    let called = image::this_process("xmip-essentials-node");
+    let called = image::this_process("xmip-system-test-node");
     let audit = process_audit::program(&called);
     audit.watch_panics();
 

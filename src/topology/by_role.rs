@@ -1,4 +1,4 @@
-//! The roll's drawing of the Essentials' own cluster file related and
+//! The roll's drawing of the System Tests' own cluster file related and
 //! stood by role, and the same with every node renamed (ADR-0052 and
 //! ADR-0056, amendments 2026-11-13; the owner, 2026-11-12: *Related by its
 //! role in the cluster, not by name*). The renamed copy gives the receiving

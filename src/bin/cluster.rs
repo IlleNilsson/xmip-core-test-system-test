@@ -15,10 +15,10 @@
 //! any other word is REFUSED (`node::NodeRole::declared`). It infers
 //! nothing: a name is not a role.
 //!
-//! The tree the owner asked for is three deep. `xmip-essentials-roll` is the
+//! The tree the owner asked for is three deep. `xmip-system-test-roll` is the
 //! test: it chooses the scenarios, sets the stress, judges and draws the
-//! board. `xmip-essentials-cluster` is this — the cluster itself, which owns
-//! the store its nodes share, starts one `xmip-essentials-node` per name,
+//! board. `xmip-system-test-cluster` is this — the cluster itself, which owns
+//! the store its nodes share, starts one `xmip-system-test-node` per name,
 //! watches each, restarts one that hangs, merges what each published, adds the
 //! rollup at `xmip:///<cluster>/node` that no node can say about itself
 //! (ADR-0027 decision 8), and publishes all of it to `--snapshot` atomically
@@ -26,12 +26,12 @@
 //! CLI and the GUI read.
 //!
 //! Each of the three declares itself where it starts (ADR-0053): this one as
-//! `xmip-essentials-cluster` at `xmip:///<cluster>`, purpose Test.
+//! `xmip-system-test-cluster` at `xmip:///<cluster>`, purpose Test.
 //!
 //! **Bad input is refused at the door** (ADR-0055). Every argument is checked
 //! before a node is spawned: an unknown or malformed value is REFUSED with
 //! exit code 2, naming what was wrong and what would be right. The scope root
-//! is `XMIP_ESSENTIALS_CLUSTER`, as it is for a roll and for a node, so
+//! is `XMIP_SYSTEM_TEST_CLUSTER`, as it is for a roll and for a node, so
 //! `--name` must be that same word — records that hang under another cluster
 //! would be found out only on a board.
 //!
@@ -52,13 +52,13 @@ use std::time::Duration;
 
 use observe::publication::write_atomic;
 use xaudit::program_audit::ProgramAudit;
-use xmip_core_test_essentials::cluster::{Cluster, Orders, node_binary};
-use xmip_core_test_essentials::roster::Roster;
-use xmip_core_test_essentials::scenario;
-use xmip_core_test_essentials::stress::Stress;
-use xmip_core_test_essentials::switch::names;
-use xmip_core_test_essentials::{cluster_name, cluster_root, node_toml};
-use xmip_core_test_essentials::{image, process_audit};
+use xmip_core_test_system_test::cluster::{Cluster, Orders, node_binary};
+use xmip_core_test_system_test::roster::Roster;
+use xmip_core_test_system_test::scenario;
+use xmip_core_test_system_test::stress::Stress;
+use xmip_core_test_system_test::switch::names;
+use xmip_core_test_system_test::{cluster_name, cluster_root, node_toml};
+use xmip_core_test_system_test::{image, process_audit};
 
 /// What the command line said.
 struct Arguments {
@@ -94,7 +94,7 @@ const USAGE: &str = "usage: cluster --name <cluster> --shared <dir> \
 fn main() -> ExitCode {
     // The name is the image's own, so the declaration and the audit say what
     // Get-Process says (ADR-0053, amendment 2026-09-20).
-    let called = image::this_process("xmip-essentials-cluster");
+    let called = image::this_process("xmip-system-test-cluster");
     let audit = process_audit::program(&called);
     audit.watch_panics();
 
@@ -107,7 +107,7 @@ fn main() -> ExitCode {
         return refuse(
             &audit,
             &format!(
-                "REFUSED: the scope root is XMIP_ESSENTIALS_CLUSTER and it says {}, not {}; \
+                "REFUSED: the scope root is XMIP_SYSTEM_TEST_CLUSTER and it says {}, not {}; \
                  a cluster is started by a roll, which sets it.",
                 cluster_name().unwrap_or_else(|| "nothing".to_string()),
                 arguments.name
@@ -116,7 +116,7 @@ fn main() -> ExitCode {
     }
 
     // What this process says of itself while it runs (ADR-0053): the cluster
-    // is the scope it is, and everything the Essentials runs is test. Every
+    // is the scope it is, and everything the System Tests run is test. Every
     // record from here carries it (ADR-0062, amendment 2026-09-29).
     audit.locate(&root);
     let _declared = ::node::Declaration::new(called, &root, ::node::Purpose::Test)

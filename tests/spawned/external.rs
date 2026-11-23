@@ -10,12 +10,12 @@ use std::sync::PoisonError;
 use std::time::{Duration, Instant};
 
 use configure::placed::{Placed, Placement};
-use xmip_core_test_essentials::carried::{Binding, Carried, Spot};
-use xmip_core_test_essentials::external::{Externals, FILE, named};
+use xmip_core_test_system_test::carried::{Binding, Carried, Spot};
+use xmip_core_test_system_test::external::{Externals, FILE, named};
 
 /// The far ends' program cargo built for this program.
 fn external_binary() -> &'static Path {
-    Path::new(env!("CARGO_BIN_EXE_xmip-essentials-external"))
+    Path::new(env!("CARGO_BIN_EXE_xmip-system-test-external"))
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn each_far_end_is_a_process_a_sender_drops_in_turn_and_a_receiver_takes_and_tel
     // Each round the next sender drops into the Location, so as many rounds
     // as there are senders reach it from every one.
     let shipped = named(FILE).expect("the shipped far ends");
-    let document = b"UNA:+.? 'UNB+UNOC:3+PARTY-A:ZZZ+ESSENTIALS:ZZZ'";
+    let document = b"UNA:+.? 'UNB+UNOC:3+PARTY-A:ZZZ+SYSTEM-TEST:ZZZ'";
     let mut senders = Vec::new();
     for round in 0..shipped.senders.len() {
         let name = format!("orders-{round}.edi");

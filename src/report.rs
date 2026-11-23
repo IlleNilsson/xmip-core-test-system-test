@@ -1,6 +1,6 @@
 //! Writing a snapshot and its history where a monitoring surface can read them.
 //!
-//! The essentials and the readers (the GUI, the CLI) are separate processes;
+//! The System Tests and the readers (the GUI, the CLI) are separate processes;
 //! the bridge between them is a file. It is written **atomically** — a temp file
 //! flushed to the device and renamed over the target, by
 //! `observe::publication::write_atomic`, the one writer every publisher
@@ -30,9 +30,9 @@ struct Handoffs {
     hops: Vec<Hop>,
 }
 
-/// What the Essentials calls itself as the publisher at `node`.
+/// What the System Tests call themselves as the publisher at `node`.
 fn source(node: &str) -> String {
-    format!("essentials — {node}")
+    format!("System Tests — {node}")
 }
 
 /// A roll's snapshot: the records beneath `node`, every count at the scope

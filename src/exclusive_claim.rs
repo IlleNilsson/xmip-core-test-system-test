@@ -247,7 +247,7 @@ fn duplicated(processed: &[Processed]) -> bool {
 
 /// Judge a round: every item claimed by exactly one holder (the claim), none
 /// missed, and — for Sequential — each key processed in order. A breach the
-/// essentials injected says so, so an operator can tell it from a real one.
+/// System Tests injected says so, so an operator can tell it from a real one.
 fn judge(style: Style, dropped: usize, processed: &[Processed]) -> Verdict {
     let holders = holders(processed);
 

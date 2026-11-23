@@ -9,7 +9,7 @@
 use std::io;
 use std::path::PathBuf;
 
-/// The `xmip-essentials-node` binary: `XMIP_ESSENTIALS_NODE` if set, else
+/// The `xmip-system-test-node` binary: `XMIP_SYSTEM_TEST_NODE` if set, else
 /// beside the current executable, where cargo writes every binary of the
 /// crate. A test program finds a binary by `CARGO_BIN_EXE_<name>` instead:
 /// cargo keeps it elsewhere, in `deps/` before Cargo 1.100 and in a unit's
@@ -19,29 +19,32 @@ use std::path::PathBuf;
 ///
 /// When neither is a file.
 pub fn node_binary() -> io::Result<PathBuf> {
-    found("XMIP_ESSENTIALS_NODE", "xmip-essentials-node")
+    found("XMIP_SYSTEM_TEST_NODE", "xmip-system-test-node")
 }
 
-/// The `xmip-essentials-cluster` binary, found the same way.
-/// `XMIP_ESSENTIALS_CLUSTER` is the cluster's own name, so the override here
-/// is `XMIP_ESSENTIALS_CLUSTER_BINARY`.
+/// The `xmip-system-test-cluster` binary, found the same way.
+/// `XMIP_SYSTEM_TEST_CLUSTER` is the cluster's own name, so the override here
+/// is `XMIP_SYSTEM_TEST_CLUSTER_BINARY`.
 ///
 /// # Errors
 ///
 /// When neither is a file.
 pub fn cluster_binary() -> io::Result<PathBuf> {
-    found("XMIP_ESSENTIALS_CLUSTER_BINARY", "xmip-essentials-cluster")
+    found(
+        "XMIP_SYSTEM_TEST_CLUSTER_BINARY",
+        "xmip-system-test-cluster",
+    )
 }
 
-/// The `xmip-essentials-external` binary, which the roll starts once for
+/// The `xmip-system-test-external` binary, which the roll starts once for
 /// each far end outside the cluster (`crate::external`), found the same
-/// way: `XMIP_ESSENTIALS_EXTERNAL` if set.
+/// way: `XMIP_SYSTEM_TEST_EXTERNAL` if set.
 ///
 /// # Errors
 ///
 /// When neither is a file.
 pub fn external_binary() -> io::Result<PathBuf> {
-    found("XMIP_ESSENTIALS_EXTERNAL", "xmip-essentials-external")
+    found("XMIP_SYSTEM_TEST_EXTERNAL", "xmip-system-test-external")
 }
 
 /// The executable called `stem`: what `variable` names, else beside the
@@ -59,7 +62,7 @@ fn found(variable: &str, stem: &str) -> io::Result<PathBuf> {
         .ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("no {stem} beside the essentials; build it, or set {variable}"),
+                format!("no {stem} beside the System Tests; build it, or set {variable}"),
             )
         })
 }

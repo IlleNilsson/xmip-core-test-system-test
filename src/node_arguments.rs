@@ -1,4 +1,4 @@
-//! What an `xmip-essentials-node` was told (`src/bin/node.rs`): every flag
+//! What an `xmip-system-test-node` was told (`src/bin/node.rs`): every flag
 //! named, none by position. The cluster writes the same flags as it starts
 //! one (`cluster.rs`, `capability.rs`).
 

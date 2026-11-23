@@ -1,4 +1,4 @@
-//! Roll the essentials: run every scenario continuously.
+//! Roll the System Tests: run every scenario continuously.
 //!
 //! `cargo run` ticks all four scenarios on an interval and redraws the combined
 //! board each round — the tests as ADR-0028 means them, over time and never
@@ -21,11 +21,11 @@
 //! detail → the failing leaf.
 //!
 //! Pass a number to run that many rounds and stop; omit it to roll until
-//! interrupted. `XMIP_ESSENTIALS_SCENARIOS` names the scenarios to drive, comma
+//! interrupted. `XMIP_SYSTEM_TEST_SCENARIOS` names the scenarios to drive, comma
 //! separated (`round-trip,heavy-load`); unset, every one rolls, so nothing changed
 //! quietly. Two time limits bound any roll (ADR-0028): a maximum wall-clock
-//! time, `XMIP_ESSENTIALS_MAX_SECONDS`, and a factor on time,
-//! `XMIP_ESSENTIALS_TIME_FACTOR`, which stretches a **simulated clock** — `1.0`
+//! time, `XMIP_SYSTEM_TEST_MAX_SECONDS`, and a factor on time,
+//! `XMIP_SYSTEM_TEST_TIME_FACTOR`, which stretches a **simulated clock** — `1.0`
 //! mimics real time, retracted below one runs simulated time faster, so a long
 //! horizon plays out in a short run (three simulated years in fifteen real
 //! minutes is `MAX_SECONDS=900` with `TIME_FACTOR≈9.5e-6`). The round cadence
@@ -34,13 +34,13 @@
 //! When stdout is a terminal the board is redrawn in place; when it is piped,
 //! one summary line per round is appended. After every tick the snapshot,
 //! history and activity are written to the TOML files the monitoring GUI reads,
-//! named for the cluster in `XMIP_ESSENTIALS_AREA` (the temp directory unset);
+//! named for the cluster in `XMIP_SYSTEM_TEST_AREA` (the temp directory unset);
 //! `roll --publication <cluster> <area>` prints where they are and starts
 //! nothing. Every variable is read in one place, `environment.rs`.
 //!
 //! **The cluster is a process too** (the owner, 2026-09-19). The roll spawns
-//! exactly one `xmip-essentials-cluster` process, and that process spawns and
-//! supervises one `xmip-essentials-node` per node (ADR-0028 clause 2). The
+//! exactly one `xmip-system-test-cluster` process, and that process spawns and
+//! supervises one `xmip-system-test-node` per node (ADR-0028 clause 2). The
 //! roll merges the one file the cluster publishes into its own snapshot each
 //! round; the board shows the nodes' rollup row, and a node's leaf only when
 //! it is not fine.
@@ -51,7 +51,7 @@
 //! (`environment::roster`). `Start-XmipTest` writes the run's file from
 //! `-Cluster`, `-Nodes` and `-NodeRole`, or names the test cluster's where
 //! `-Nodes` was not given; nothing is counted or numbered.
-//! `XMIP_ESSENTIALS_ONLINE_NODES` names the ones among them that may assume
+//! `XMIP_SYSTEM_TEST_ONLINE_NODES` names the ones among them that may assume
 //! the internet (ADR-0045); unset, every node reads `XMIP_ONLINE`.
 //!
 //! **A node declares its roles** (ADR-0056, amendment 2026-10-01) —
@@ -64,19 +64,19 @@
 //! role. A node serving no stage runs the shared-directory tests whole, as
 //! before. A node's name decides none of this.
 //!
-//! **A real node is used where its name resolves** (ADR-0028, amendments
-//! 2026-09-19 and 2026-10-21): the names the operator typed,
-//! `XMIP_ESSENTIALS_NAMED`, and the cluster's, are resolved, and one that
-//! answers as that node of this cluster over its operate listener, asked
-//! with the operator certificate `XMIP_ESSENTIALS_CERTIFICATE` names, is
-//! real — never spawned, configured or stopped, its publication followed
-//! by the runtime's one gatherer (`runtime::plane::gather`) and merged each
-//! round; one that resolves and does not is REFUSED by name. The cluster
-//! process is given only the simulated nodes, and `[run] real` and the
-//! first lines say which are which (`real.rs`).
+//! **The Systems Tests' nodes are machines** (ADR-0028, amendment
+//! 2026-11-23): where `XMIP_SYSTEM_TEST_MACHINES` is `true`, every node of
+//! the run and the cluster's name are resolved, and each must answer as that
+//! node of this cluster over its operate listener, asked with the operator
+//! certificate `XMIP_SYSTEM_TEST_CERTIFICATE` names — never spawned,
+//! configured or stopped, its publication followed by the runtime's one
+//! gatherer (`runtime::plane::gather`) and merged each round; one that does
+//! not resolve or does not answer is REFUSED by name, and none is spawned in
+//! its place. The System Tests resolve no name. `[run] real` and the first
+//! lines say which nodes are real (`real.rs`).
 //!
 //! **Every other node is started as `xmip-service`** where the run was
-//! given one, `XMIP_ESSENTIALS_SERVICE`, and one of those nodes declares the
+//! given one, `XMIP_SYSTEM_TEST_SERVICE`, and one of those nodes declares the
 //! Storage role (ADR-0028, amendment 2026-10-22): the run gives each its
 //! slice, its certificate, its addresses on loopback and its bindings
 //! (`served.rs`), reads it as a real node, and drives it through its Receive
@@ -104,29 +104,29 @@ use std::time::Duration;
 use observe::topology::window::Window;
 use observe::{Activity, History, Snapshot, now_unix_nanos};
 use xaudit::program_audit::ProgramAudit;
-use xmip_core_test_essentials::cluster::Orders;
-use xmip_core_test_essentials::drop_box::Dropping;
-use xmip_core_test_essentials::environment::{self, max_seconds, time_factor};
-use xmip_core_test_essentials::in_process::InProcess;
-use xmip_core_test_essentials::publication::Publication;
-use xmip_core_test_essentials::real;
-use xmip_core_test_essentials::roll::round::{Drawing, Rolling, assembled, scenarios};
-use xmip_core_test_essentials::roll::{
+use xmip_core_test_system_test::cluster::Orders;
+use xmip_core_test_system_test::drop_box::Dropping;
+use xmip_core_test_system_test::environment::{self, max_seconds, time_factor};
+use xmip_core_test_system_test::in_process::InProcess;
+use xmip_core_test_system_test::publication::Publication;
+use xmip_core_test_system_test::real;
+use xmip_core_test_system_test::roll::round::{Drawing, Rolling, assembled, scenarios};
+use xmip_core_test_system_test::roll::{
     Nodes, Ran, activity, announce, declared, leave, nodes, reading, relayed, say_started, shared,
     spawn_cluster, the_publication,
 };
-use xmip_core_test_essentials::run::{announced, found};
-use xmip_core_test_essentials::{
+use xmip_core_test_system_test::run::{announced, found};
+use xmip_core_test_system_test::{
     Budget, Headroom, Parties, Stress, cluster_name, cluster_root, record_round, redraw, started,
     summarize,
 };
-use xmip_core_test_essentials::{image, process_audit};
+use xmip_core_test_system_test::{image, process_audit};
 
 fn main() {
-    // The name is the image's own — xmip-essentials-<cluster>-roll where
+    // The name is the image's own — xmip-system-test-<cluster>-roll where
     // Start-XmipTest linked one — so the declaration and the audit say what
     // Get-Process says (ADR-0053, amendment 2026-09-20).
-    let called = image::this_process("xmip-essentials-roll");
+    let called = image::this_process("xmip-system-test-roll");
     let audit = process_audit::program(&called);
     audit.watch_panics();
 
@@ -229,7 +229,7 @@ fn main() {
         // Every scope's series, and the rollup at the root that the history
         // file is written from: a scenario counts beneath the node, so a roll
         // that recorded only the snapshot published `points = []` for as long
-        // as the Essentials has had a history (curve.rs, 2026-09-19).
+        // as the System Tests have had a history (curve.rs, 2026-09-19).
         if let Some(dropping) = dropping.as_mut() {
             dropping.round(root, &mut snapshot, now_unix_nanos());
         }
@@ -316,12 +316,12 @@ fn or_refuse<T>(audit: &ProgramAudit, told: Result<T, String>) -> T {
 fn this_cluster() -> Result<(String, String, PathBuf), String> {
     let Some(cluster) = cluster_name() else {
         return Err(
-            "REFUSED: a roll is a cluster and the owner names it; set XMIP_ESSENTIALS_CLUSTER \
+            "REFUSED: a roll is a cluster and the owner names it; set XMIP_SYSTEM_TEST_CLUSTER \
              (Start-XmipTest -Cluster <name>). A test spawns nodes, never a cluster."
                 .to_string(),
         );
     };
-    let base = std::env::temp_dir().join("essentials").join(&cluster);
+    let base = std::env::temp_dir().join("system-test").join(&cluster);
     std::fs::remove_dir_all(&base).ok();
     Ok((cluster, cluster_root(), base))
 }

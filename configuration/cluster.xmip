@@ -1,4 +1,4 @@
-# The Essentials' cluster configuration: one file for a run on one computer
+# The System Tests' cluster configuration: one file for a run on one computer
 # and for the same cluster on machines of its own (the owner, 2026-10-21:
 # *one TOML file that can be run for tests regardless of node faking or
 # actual nodes*; ADR-0028, amendment 2026-10-21). It says what the cluster
@@ -28,7 +28,7 @@
 # caller holds the role its own name is listed with, and none where no list
 # names it (ADR-0009, amendment 2026-11-07). On one computer the run lists
 # the tester among every node's operators: the account it runs as, and the
-# subject of every operator certificate the Essentials' authority signed
+# subject of every operator certificate the System Tests' authority signed
 # (src/served/given.rs); on machines of their own the environment lists its
 # operators' certificate subjects or accounts in `operators`.
 [operate]
@@ -90,8 +90,8 @@ roles = "operational, monitoring"
 # the `authority` folder beside the node's slice, where the trust reads its
 # anchor and, where the authority's key is kept, its key (ADR-0034,
 # amendment 2026-10-15). It is part of the node's signed slice, so a hand
-# edit of it is refused (ADR-0031, amendment 2026-11-19). The Essentials
-# signs a tester's request by this slice (Initialize-XmipEssentialsAuthority).
+# edit of it is refused (ADR-0031, amendment 2026-11-19). The System Tests
+# sign a tester's request by this slice (Initialize-XmipSystemTestAuthority).
 [nodes.OP1.provision.operator]
 authority = "authority"
 
@@ -102,10 +102,10 @@ roles = "storage"
 roles = "storage"
 
 # The Parties the cluster trades with (ADR-0019; ADR-0028, amendment
-# 2026-10-13). Each sends into the Essentials over its share of the
+# 2026-10-13). Each sends into the System Tests over its share of the
 # transports and is delivered to over another share, presenting the
 # identity written here; the 50-second fault moves across them. Rename them
-# here: nothing in the Essentials' code names a Party. Each Party is
+# here: nothing in the System Tests' code names a Party. Each Party is
 # written with its id, a UUIDv7 minted once with it, and each identity
 # with the mechanism that verifies it and what it is for (the owner,
 # 2026-10-19).
@@ -271,17 +271,17 @@ unit = "OrderApproval"
 [[xmip_applications.subscriptions]]
 id = "Sales orders"
 destination = { work-process = "Order approval" }
-filter = "\"content:edi:UNH/2/1\" = 'ORDERS' and \"content:edi:UNB/3/1\" = 'ESSENTIALS' and not exists Approval"
+filter = "\"content:edi:UNH/2/1\" = 'ORDERS' and \"content:edi:UNB/3/1\" = 'SYSTEM-TEST' and not exists Approval"
 
 [[xmip_applications.subscriptions]]
 id = "Approved sales orders"
 destination = { send-port = "Sales orders to ERP" }
-filter = "\"content:edi:UNH/2/1\" = 'ORDERS' and \"content:edi:UNB/3/1\" = 'ESSENTIALS' and Approval = 'approved'"
+filter = "\"content:edi:UNH/2/1\" = 'ORDERS' and \"content:edi:UNB/3/1\" = 'SYSTEM-TEST' and Approval = 'approved'"
 
 [[xmip_applications.subscriptions]]
 id = "Remittance advices"
 destination = { send-port = "Remittance advices to ERP" }
-filter = "\"content:edi:UNH/2/1\" = 'REMADV' and \"content:edi:UNB/3/1\" = 'ESSENTIALS'"
+filter = "\"content:edi:UNH/2/1\" = 'REMADV' and \"content:edi:UNB/3/1\" = 'SYSTEM-TEST'"
 
 [[xmip_applications.subscriptions]]
 id = "Order responses"
@@ -355,17 +355,17 @@ name = "Payments to Party-E"
 [[xmip_applications.subscriptions]]
 id = "Purchase order responses"
 destination = { send-port = "Purchase order responses to ERP" }
-filter = "\"content:edi:UNH/2/1\" = 'ORDRSP' and \"content:edi:UNB/3/1\" = 'ESSENTIALS'"
+filter = "\"content:edi:UNH/2/1\" = 'ORDRSP' and \"content:edi:UNB/3/1\" = 'SYSTEM-TEST'"
 
 [[xmip_applications.subscriptions]]
 id = "Goods receipts"
 destination = { send-port = "Goods receipts to ERP" }
-filter = "\"content:edi:UNH/2/1\" = 'RECADV' and \"content:edi:UNB/3/1\" = 'ESSENTIALS'"
+filter = "\"content:edi:UNH/2/1\" = 'RECADV' and \"content:edi:UNB/3/1\" = 'SYSTEM-TEST'"
 
 [[xmip_applications.subscriptions]]
 id = "Inventory reports"
 destination = { send-port = "Inventory reports to ERP" }
-filter = "\"content:edi:UNH/2/1\" = 'INVRPT' and \"content:edi:UNB/3/1\" = 'ESSENTIALS'"
+filter = "\"content:edi:UNH/2/1\" = 'INVRPT' and \"content:edi:UNB/3/1\" = 'SYSTEM-TEST'"
 
 [[xmip_applications.subscriptions]]
 id = "Purchase orders"

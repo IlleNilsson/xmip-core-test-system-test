@@ -1,19 +1,19 @@
-//! A real node is used, a simulated one is the fallback (ADR-0028,
-//! amendments 2026-09-19 and 2026-10-21; the owner: *if there are actual
-//! DNS names for clusters and nodes, the test shall use them instead of
-//! spawning test processes*).
+//! The Systems Tests' nodes are machines of their own; the System Tests'
+//! are processes on one computer (ADR-0028, amendment 2026-11-23; the owner:
+//! *System Test is local. Systems Test test systems together*).
 //!
-//! Only what the operator typed is resolved — the cluster, `-Cluster`, and
-//! the nodes `-Nodes` named (`environment::named`) — through this machine's
-//! own resolver, at the port the cluster's own cluster.xmip says the node is
-//! operated on. A name that does not resolve is a node the rig spawns, as
-//! before. A name that resolves is not yet trusted: it must answer over its
-//! operate listener, inside Xmip's mutual TLS with the operator certificate
-//! the run names (`environment::certificate`), declare itself the node of
-//! that name in that cluster (ADR-0053) and say what it can do (ADR-0056);
-//! anything else is REFUSED by name, never quietly replaced with a spawned
-//! process — the operator meant that machine. A resolving cluster name must
-//! answer as a node of that cluster.
+//! The suite says which (`environment::machines`), never a name. On machines
+//! every node of the run — the nodes `-Nodes` named, or the cluster file's —
+//! and the cluster's own name, `-Cluster`, are resolved through this
+//! machine's own resolver, at the port the cluster's own cluster.xmip says
+//! the node is operated on. A node whose name does not resolve is REFUSED,
+//! and none is spawned in its place. A name that resolves is not yet
+//! trusted: it must answer over its operate listener, inside Xmip's mutual
+//! TLS with the operator certificate the run names
+//! (`environment::certificate`), declare itself the node of that name in
+//! that cluster (ADR-0053) and say what it can do (ADR-0056); anything else
+//! is REFUSED by name. A resolving cluster name must answer as a node of
+//! that cluster. On one computer no name is resolved at all.
 //!
 //! The rig never spawns, configures or stops a real node: an orchestrator
 //! owns a node's life (ADR-0052, ruling 8). It follows what the node
@@ -44,16 +44,38 @@ pub struct Sorted {
     pub simulated: Roster,
 }
 
-/// The nodes of `roster`, sorted into real and simulated by the names the
-/// operator typed (`environment::named`), asked with the run's operator
-/// certificate (`environment::certificate`), as [`found`] does.
+/// The nodes of `roster`, sorted into real and simulated: on machines
+/// (`environment::machines`) every one real, asked with the run's operator
+/// certificate (`environment::certificate`) as [`found`] does; on one
+/// computer none.
 ///
 /// # Errors
 ///
 /// As [`found`].
 pub fn sorted(cluster: &str, roster: Roster) -> Result<Sorted, String> {
     let certificate = environment::certificate();
-    let real = found(cluster, &environment::named(), certificate.as_deref())?;
+    sort(
+        cluster,
+        roster,
+        environment::machines(),
+        certificate.as_deref(),
+    )
+}
+
+/// [`sorted`], told whether the run is on machines and the folder of the
+/// operator certificate it asks them with.
+fn sort(
+    cluster: &str,
+    roster: Roster,
+    machines: bool,
+    certificate: Option<&Path>,
+) -> Result<Sorted, String> {
+    let real = if machines {
+        let asked: Vec<String> = roster.names().into_iter().map(str::to_string).collect();
+        found(cluster, &asked, certificate)?
+    } else {
+        Vec::new()
+    };
     let names: Vec<String> = real.iter().map(|node| node.name.clone()).collect();
     let roster = real.iter().fold(roster, |roster, node| {
         roster.declared(&node.name, node.capability.clone())
@@ -200,17 +222,18 @@ impl RealNode {
     }
 }
 
-/// The nodes among `typed` that are real, each having answered and declared
-/// itself a node of `cluster`; every other typed name is simulated. The
+/// The nodes `names` of `cluster` on machines of their own, each having
+/// resolved, answered and declared itself a node of `cluster`. The
 /// cluster's own name is asked too where it resolves.
 ///
 /// # Errors
 ///
-/// REFUSED, naming the name: a resolving name the rig holds no certificate
-/// to ask, one that does not answer, or one that answers as something else.
+/// REFUSED, naming the name: one that does not resolve, a resolving name
+/// the rig holds no certificate to ask, one that does not answer, or one
+/// that answers as something else.
 pub fn found(
     cluster: &str,
-    typed: &[String],
+    names: &[String],
     certificate: Option<&Path>,
 ) -> Result<Vec<RealNode>, String> {
     if let Some(address) = resolving(cluster, &operate_port(cluster, None)?) {
@@ -224,9 +247,13 @@ pub fn found(
         }
     }
     let mut real = Vec::new();
-    for name in typed {
-        let Some(address) = resolving(name, &operate_port(cluster, Some(name))?) else {
-            continue;
+    for name in names {
+        let port = operate_port(cluster, Some(name))?;
+        let Some(address) = resolving(name, &port) else {
+            return Err(format!(
+                "REFUSED: {name} does not resolve, at port {port}: the Systems Tests run on \
+                 the environment's machines and spawn no node in a machine's place"
+            ));
         };
         let remote = answering(name, &address, certificate)?;
         let capability = declared(cluster, name, &address, &remote)?;
@@ -250,12 +277,14 @@ fn operate_port(cluster: &str, node: Option<&str>) -> Result<String, String> {
     let asked = node
         .filter(|name| declared.iter().any(|one| one == name))
         .or_else(|| declared.first().map(String::as_str))
-        .ok_or("REFUSED: the Essentials' cluster.xmip declares no node")?;
+        .ok_or("REFUSED: the System Tests' cluster.xmip declares no node")?;
     let document = configure::parse_toml(&configure::slice_named(CLUSTER, asked, cluster)?)?;
     let listen = document
         .operate
         .and_then(|operate| operate.listen)
-        .ok_or_else(|| format!("REFUSED: the Essentials' cluster.xmip operates {asked} nowhere"))?;
+        .ok_or_else(|| {
+            format!("REFUSED: the System Tests' cluster.xmip operates {asked} nowhere")
+        })?;
     listen
         .rsplit_once(':')
         .map(|(_, port)| port.to_string())
@@ -367,17 +396,29 @@ mod tests {
     use crate::support::test_cluster;
 
     #[test]
-    fn a_name_that_does_not_resolve_is_simulated_and_the_port_is_the_file_s() {
+    fn on_machines_a_name_that_does_not_resolve_is_refused_and_the_port_is_the_file_s() {
         let cluster = test_cluster();
         let port = operate_port(&cluster.name, None).expect("the file operates its nodes");
         assert!(port.parse::<u16>().is_ok(), "{port}");
         // A name no resolver knows: `.invalid` is reserved for it (RFC 6761).
         let unknown = vec!["no-such-node.invalid".to_string()];
-        let found = found(&cluster.name, &unknown, None).expect("nothing resolves");
+        let refused = found(&cluster.name, &unknown, None)
+            .err()
+            .expect("a machine that is not there is refused, never spawned");
         assert!(
-            found.is_empty(),
-            "a name that does not resolve is simulated"
+            refused.starts_with("REFUSED: no-such-node.invalid does not resolve"),
+            "{refused}"
         );
+    }
+
+    #[test]
+    fn on_one_computer_no_name_is_resolved_and_every_node_is_simulated() {
+        let cluster = test_cluster();
+        // A name every resolver knows: on one computer it is still a process.
+        let roster = Roster::of(&["localhost".to_string()]);
+        let sorted = sort(&cluster.name, roster.clone(), false, None).expect("nothing asked");
+        assert!(sorted.real.is_empty(), "no node is real on one computer");
+        assert_eq!(sorted.simulated, roster);
     }
 
     #[test]

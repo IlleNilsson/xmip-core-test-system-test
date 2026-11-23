@@ -1,6 +1,6 @@
-# xmip-core-test-essentials
+# xmip-core-test-system-test
 
-**The Xmip Essentials.** One integration test — the **RoundTrip test** — over
+**The Xmip System Tests.** One integration test — the **RoundTrip test** — over
 the whole estate, over time.
 
 Its scenario is a round trip: send a payload, catch it, check it came back
@@ -47,7 +47,7 @@ names everywhere; the scope segment is the name in kebab case (`round-trip`,
   one probe item per contract filed through every archive technology on main
   — parquet, sqlite, file, sql, postgresql, mssql, mariadb, aws-s3, azure-blob,
   google-cloud-storage — archived and restored, judged equal or not, under
-  `xmip:///essentials/filing/<technology>/<contract>`. Retention proves the
+  `xmip:///system-test/filing/<technology>/<contract>`. Retention proves the
   lifecycle over one store; Filing proves every store. Each technology gets a
   `Cabinet` adapter the way each transport gets a `RoundTrip`, so a new archive
   technology is a new adapter, not a new scenario. Under pressure a filing is
@@ -57,7 +57,7 @@ names everywhere; the scope segment is the name in kebab case (`round-trip`,
   round — and its subject is the invariants that must survive that: a tick
   finishes within its bound, every failure carries a reason, a red leaf
   reaches the root, nothing panics. RoundTrip proves the pair; storm proves the
-  essentials and the estate under it do not lie when leaned on.
+  System Tests and the estate under them do not lie when leaned on.
 - **ExclusiveClaim** — exclusive pickup: a dropped item is read by exactly one holder,
   under real thread contention, across the **execution style** it declares —
   Sequential, Parallel, Concurrent (runtime-model.md). Sequential additionally
@@ -85,7 +85,7 @@ sweeps, dropped claims) so the board is realistic rather than uniformly green;
 
 Every roll honors two limits, one `Budget` shared by all scenarios rather than
 per-scenario knobs. A **maximum time** is a wall-clock ceiling: when it is
-reached the roll stops, whatever the round count — `XMIP_ESSENTIALS_MAX_SECONDS`.
+reached the roll stops, whatever the round count — `XMIP_SYSTEM_TEST_MAX_SECONDS`.
 The ceiling is checked between rounds, so a long tick runs to completion rather
 than being cut mid-round; the maximum bounds how long a run lasts, not how long
 a single round takes.
@@ -95,7 +95,7 @@ A **factor on time** stretches a **simulated clock** against real time:
 it below one runs simulated time faster than real, so a long horizon plays out in
 a short run. Fifteen real minutes over three simulated years is `MAX_SECONDS=900`
 with `TIME_FACTOR ≈ 9.5e-6` (900 real seconds ÷ three years) —
-`XMIP_ESSENTIALS_TIME_FACTOR`. The round cadence stays real; the factor stretches
+`XMIP_SYSTEM_TEST_TIME_FACTOR`. The round cadence stays real; the factor stretches
 *simulated* time, not the wait between rounds. Scenarios that age on a clock —
 the Retention test's lifecycle, retained 90 days then archived — read
 simulated elapsed from the `Budget`, so an operator watches records born, live
@@ -118,7 +118,7 @@ plus one, a mebibyte), how many pairs run at once (one, one, four, every core),
 how many rounds a test drives, and how many node processes a roll spawns (one,
 three, ten, forty). `realistic` is what the runner ran at before the axis
 existed and is the level a hand-started roll takes when
-`XMIP_ESSENTIALS_STRESS` is unset, so nothing changed quietly for one.
+`XMIP_SYSTEM_TEST_STRESS` is unset, so nothing changed quietly for one.
 `Start-XmipTest` has said `brutal` since 2026-09-19, because an omitted
 selector there means the most the rig can give (ADR-0059, amendment).
 
@@ -129,7 +129,7 @@ node under its `[nodes]` is one process, declaring the roles its `roles` key
 says (`Roster::of_cluster`, over `configure::cluster::roles`), and a roll told
 no file is REFUSED. `Start-XmipTest` writes the run's own file from
 `-Cluster` and the nodes `-Nodes` names, or, where it names none, every node
-of the Essentials' own cluster file, [`configuration/cluster.xmip`](configuration/cluster.xmip),
+of the System Tests' own cluster file, [`configuration/cluster.xmip`](configuration/cluster.xmip),
 each with the roles `-NodeRole` states or that file declares. Nothing is
 counted or numbered (ADR-0056, amendment 2026-10-03). Where no node declares
 a stage, each runs whole tests itself, and both the roll's first line and
@@ -153,12 +153,14 @@ the run's own directories, slicing through `configure::slice_named` as an
 environment does; on machines of their own the environment templates under
 `deploy/dsc` give each machine its node's slice of the same file.
 
-A node is **simulated** — a process this run spawned — unless the name typed
-for it is real (`src/real.rs`). Only what the operator typed is resolved:
-`-Cluster` and the nodes `-Nodes` named, `XMIP_ESSENTIALS_NAMED`, by this
-machine's resolver, at the port the file says that node is operated on. A
-name that resolves must answer over its operate listener, asked with the
-operator certificate `-Certificate` names (`XMIP_ESSENTIALS_CERTIFICATE`:
+In the System Tests, `Core.System`, every node is **simulated** — a process
+this run spawned — or started here, and no name is resolved. In the Systems
+Tests, `Core.Systems`, every node is **real** (`src/real.rs`;
+`XMIP_SYSTEM_TEST_MACHINES`): every node of the run and `-Cluster` are
+resolved by this machine's resolver, at the port the file says that node is
+operated on. A name that does not resolve is REFUSED, and none is spawned in
+its place. A name that resolves must answer over its operate listener, asked with the
+operator certificate `-Certificate` names (`XMIP_SYSTEM_TEST_CERTIFICATE`:
 `operator.pem`, `operator.key`, `anchors.pem`), as that node of this cluster
 saying what it can do; it is then **real**, runs by the roles it declared,
 and is never spawned, configured or stopped. Anything else is REFUSED by
@@ -174,12 +176,12 @@ gatherer calls too.
 
 Every other node is **started**, a process of the assembled `xmip-service`,
 where the run was given one — `Start-XmipTest` builds it as the
-`personal-computer` site builds it, `XMIP_ESSENTIALS_SERVICE` — and one of
+`personal-computer` site builds it, `XMIP_SYSTEM_TEST_SERVICE` — and one of
 those nodes declares the Storage role, which the rest reach; else it is
 simulated (`src/served.rs`; ADR-0028, amendment 2026-10-22). The run is
 their environment: each its slice of the file, its certificate from the
-Essentials' own authority, the one the web host is served under, kept
-across runs in .local-work/essentials/authority (ADR-0028, amendment
+System Tests' own authority, the one the web host is served under, kept
+across runs in .local-work/system-test/authority (ADR-0028, amendment
 2026-10-27), each plane on loopback — the Storage nodes' names in
 `[storage] nodes` resolved to the addresses they serve at — and the
 bindings that place the Applications on them, file Locations over the
@@ -225,7 +227,7 @@ process of its own (src/external.rs, its program src/bin/external.rs;
 ADR-0028, amendment 2026-11-22): three senders and three receivers, named in
 [configuration/external.xmip](configuration/external.xmip) beside the
 cluster's file, each run from an image of its own,
-xmip-essentials-<cluster>-external-<name>. Each round each Receive
+xmip-system-test-<cluster>-external-<name>. Each round each Receive
 Location's document goes through the next sender in turn, which drops it as
 the rig did, so every sender reaches every node that receives; each Send
 Port delivers to one receiver, round robin in the order the Send Ports are
@@ -251,7 +253,7 @@ enrolled for, so a key is refused whatever user it signed for.
 `remote.rs`; ADR-0028, amendment 2026-11-22) are used where every far end's
 name resolves, as a node on a machine is used where its name does: EXTTX1 to
 EXTTX3 and EXTRX1 to EXTRX3, named apart from every node. Each runs as the
-service `xmip-<name>` on its machine, `xmip-essentials-external --serve`,
+service `xmip-<name>` on its machine, `xmip-system-test-external --serve`,
 which the environment registers through the far end's own `--install` and
 the runtime's one registration of a service; the roll reaches it over Xmip's
 mutual TLS on port 7423 with the tester's operator certificate, and tells it
@@ -303,7 +305,7 @@ and a landing stopped on a test that waited minutes.
 The stress level sized `brutal` to every core and to forty node processes,
 `harsh` to ten. The owner ruled on 2026-09-11, watching a brutal roll: the
 tests may use half of the resources left when they start. A machine a quarter
-busy has three quarters free; the Essentials takes half of that, three eighths
+busy has three quarters free; the System Tests take half of that, three eighths
 of the machine, and the other half of what was free stays with whatever else
 the machine is doing — and that other work moves, so the measure is taken
 again before every round. `headroom.rs` reads processor time less what the
@@ -320,7 +322,7 @@ budget beside each round.
 Clause 5 and *Every transport declares its ceiling* above are read through
 ADR-0051 since 2026-09-11: the dance that makes a transport its own far end,
 its ceiling and its refusals are written in the technology's crate as the
-capability's `Loopback`, and the Essentials drives every transport through
+capability's `Loopback`, and the System Tests drive every transport through
 one adapter over it. "A new transport is a new adapter, not a new scenario"
 becomes "a new transport is its own loopback, and a line in the list".
 
@@ -366,16 +368,16 @@ alive, exited, restarted — is at `node/<name>/system-process`.
 ### Even clusters are spawned as processes, 2026-09-19
 
 The owner: *even clusters have to be spawned as processes during tests.* Until
-this day `xmip-essentials-roll` was both the test and the cluster. Now the
+this day `xmip-system-test-roll` was both the test and the cluster. Now the
 tree is three deep, and each of the three declares its name, location and
 purpose Test where it starts (ADR-0053):
 
 ```text
-xmip-essentials-roll             the test: chooses scenarios, sets stress, judges, draws
-└─ xmip-essentials-cluster CL1   the cluster: owns the shared store, spawns and watches
-   ├─ xmip-essentials-node RX1   the nodes, one process each
-   ├─ xmip-essentials-node PX1
-   └─ xmip-essentials-node TX1
+xmip-system-test-roll             the test: chooses scenarios, sets stress, judges, draws
+└─ xmip-system-test-cluster CL1   the cluster: owns the shared store, spawns and watches
+   ├─ xmip-system-test-node RX1   the nodes, one process each
+   ├─ xmip-system-test-node PX1
+   └─ xmip-system-test-node TX1
 ```
 
 The **roll** keeps what a test driver owns: the scenarios that stay in its own
@@ -390,7 +392,7 @@ The **cluster** (`src/bin/cluster.rs`) is a [`Cluster`] and nothing else. It
 takes `--name --shared --nodes --stress --rounds --snapshot`, with
 `--online`, `--scenarios` and `--interval-ms` optional; a value it cannot read
 is REFUSED with exit code 2, naming what was wrong and what would be right
-(ADR-0055). Its scope root is `XMIP_ESSENTIALS_CLUSTER`, which the roll sets
+(ADR-0055). Its scope root is `XMIP_SYSTEM_TEST_CLUSTER`, which the roll sets
 on it and which its own nodes inherit, so all three agree without being told
 twice — and `--name` must be that same word. It publishes
 `<cluster>-cluster.xmip` beside the roll's snapshot, atomically, each round,
@@ -424,29 +426,29 @@ cluster `CL1` over nodes `RX1`, `PX1` and `TX1` — names the tester chose, whic
 mean nothing to Xmip — is
 
 ```text
-xmip-essentials-CL1-cluster
-xmip-essentials-CL1-node-PX1
-xmip-essentials-CL1-node-RX1
-xmip-essentials-CL1-node-TX1
-xmip-essentials-CL1-roll
+xmip-system-test-CL1-cluster
+xmip-system-test-CL1-node-PX1
+xmip-system-test-CL1-node-RX1
+xmip-system-test-CL1-node-TX1
+xmip-system-test-CL1-roll
 ```
 
 A process name is its image file's name and a running process cannot be
 renamed, so each of these is a **hard link** to the built binary, laid down
-under `.local-work/essentials/image/<cluster>/` when `Start-XmipTest` starts
+under `.local-work/system-test/image/<cluster>/` when `Start-XmipTest` starts
 the roll and taken away when the roll ends. A copy is the fallback where a
 link cannot be made. Nothing is written into the repository, and nothing is
 copied that can be linked: the node binary is twenty-one megabytes and a
 brutal level brings forty nodes.
 
-A roll started by hand — `cargo run --bin xmip-essentials-roll` — names no
+A roll started by hand — `cargo run --bin xmip-system-test-roll` — names no
 cluster's images, so it and its tree keep the plain names
-`xmip-essentials-roll`, `xmip-essentials-cluster` and `xmip-essentials-node`,
+`xmip-system-test-roll`, `xmip-system-test-cluster` and `xmip-system-test-node`,
 as do this crate's own tests. Because a node's name is the last word of its
 process name, it is a file name: the same shape a cluster's name takes, and
 nothing further. A node may be called `roll` — the owner, 2026-09-20: *a node
 is a node and can have one or more roles, roll is something different* — and
-reads as `xmip-essentials-CL1-node-roll`, which is no roll of anything. The
+reads as `xmip-system-test-CL1-node-roll`, which is no roll of anything. The
 marker is what keeps the kinds apart, so no name is refused to make the shape
 convenient; only a name no file can carry is REFUSED before anything spawns.
 
@@ -454,8 +456,8 @@ convenient; only a name no file can carry is REFUSED before anything spawns.
 
 Every node subscribes one Party twice in its own process, through
 `xmip-core-cluster`'s hub (`delivery`) and nothing of its own (`src/eventing.rs`; ADR-0065,
-amendment 2026-09-29). Being in the Essentials' process admits nobody: the
-Essentials, the program hosting the hub, hands it the policy that allows
+amendment 2026-09-29). Being in the System Tests' process admits nobody: the
+System Tests, the program hosting the hub, hand it the policy that allows
 that Party — the authorize capability's party technology, `PartyPolicy`
 (`Hub::authorize_by`; amendment 2026-09-26). The Party is *operations*, and
 a subscriber is the Party its proven caller resolves to, never one it names:
@@ -482,7 +484,7 @@ really hold.
 ### A node that processes routes by real Subscriptions, 2026-09-30
 
 The RoundTrip test runs the Xmip Applications held as sections of the
-Essentials' cluster configuration,
+System Tests' cluster configuration,
 [`configuration/cluster.xmip`](configuration/cluster.xmip) (ADR-0064 and ADR-0031,
 amendments 2026-10-03): since 2026-10-13 two business flows an ERP runs with
 its Parties, order to cash and procure to pay, their Receive Locations,
@@ -550,7 +552,7 @@ cluster and node and never read a process name (ADR-0062, amendment
 ### A cluster and its nodes: a node declares what it can do, 2026-09-19
 
 The owner: *Fleet is what I see in topology when running test, I would like to
-see cluster, nodes, receive, process, send.* What the Essentials spawns is a
+see cluster, nodes, receive, process, send.* What the System Tests spawn is a
 cluster and its nodes, and the word it used until then is retired (ADR-0028).
 
 **A node declares its roles** (`node::Capability`, `roster.rs`; ADR-0056,
@@ -565,7 +567,7 @@ kinds are modeled here, the roles and online capability (`--online`,
 ADR-0045); authentication and runtime capability are not, and the node's own
 capability record says so rather than leaving it to be guessed.
 
-The words are not the Essentials'. `node::NodeRole` (`xmip-core-node`) is
+The words are not the System Tests'. `node::NodeRole` (`xmip-core-node`) is
 the one declaration and `NodeRole::declared` the one parse: `--role`,
 `--nodes` and a published capability record all read through it, and
 `node::Stage` is the message-path stage every verdict, hop and scope here
@@ -586,7 +588,7 @@ owner struck that too: *Rn, Pn and Sn are arbitrary node names* (ADR-0056,
 amendment). **Nowhere in Xmip is a node's name read.** A named node carries
 what `-NodeRole @{ RX1 = 'receiving' }` states for it and nothing else; a
 node given none declares none, and `Start-XmipTest` says so in words before it
-spawns anything. Omit `-Nodes` and the Essentials' own `cluster.xmip` declares
+spawns anything. Omit `-Nodes` and the System Tests' own `cluster.xmip` declares
 them. What leaves PowerShell is a cluster file, `[nodes.RX1] roles =
 "receiving"` — a declaration, not a name.
 The examples here name clusters `CL1`, `CL2` and nodes `RX1`, `PX1`, `TX1`, as the
@@ -744,20 +746,24 @@ on every view. `roles` is what each node was started with, `RX1=receiving` or
 ## Running it
 
 Nothing here starts on its own. Xmip provides its tests as suites, and the
-Essentials is the first: a person starts a run of it (a roll), a set of
+System Tests are the first: a person starts a run of them (a roll), a set of
 emulated nodes or the web monitor, sees what is running, and stops it — Start,
 Get and Stop for each, from the estate's PowerShell module. The commands and
 what each one does are the estate's `README.md` (*Beginners*, *Operators* and
 *The estate module*), and `Get-Help Start-XmipTest -Full` documents every
 parameter; this document does not repeat them. A suite is named
 `<Provider>.<Name>` (ADR-0011, ADR-0059), and a bare name is Xmip's own
-because `core` is the reserved provider, so this one is `Essentials` — the
-default — and `Core.Essentials` names the same suite. `-Suite` takes
-wildcards as `-Test` does: `-Suite *` is every suite this estate knows. A
+because `core` is the reserved provider. This crate runs two of them
+(ADR-0028, amendment 2026-11-23): `Core.System`, the System Tests — the
+default, and `System` names the same suite — every node a process on this
+computer; and `Core.Systems`, the Systems Tests, every node on a machine of
+its own that the environment's templates set up first, started by its name
+alone. `-Suite` takes wildcards as `-Test` does: `-Suite *` is every
+suite this estate knows but those started by name. A
 provider's suite joins by a declaration in `test/suite`, never by an edit to
 Xmip.
 
-The Essentials' tests, by the name a person asks for and the scope segment the
+The System Tests' tests, by the name a person asks for and the scope segment the
 roll publishes under: RoundTrip is `round-trip`, LowLatency is `low-latency`,
 HeavyLoad is `heavy-load`, Retention is `retention`, Filing is `filing`,
 ExclusiveClaim is `exclusive-claim`, DailyBacklog is `daily-backlog`. `-Test`
@@ -768,29 +774,29 @@ same; `-Test Round*` is RoundTrip. Wildcards, not regular expressions
 starts.
 
 Every Start and Stop takes `-WhatIf`. A roll's switches reach it through its
-own environment, never yours: `-Stress` is `XMIP_ESSENTIALS_STRESS`
+own environment, never yours: `-Stress` is `XMIP_SYSTEM_TEST_STRESS`
 (`calm`, `realistic`, `harsh`, `brutal`), `-Test` is
-`XMIP_ESSENTIALS_SCENARIOS` (the scope segments above; unset means all),
+`XMIP_SYSTEM_TEST_SCENARIOS` (the scope segments above; unset means all),
 `-Nodes` and `-NodeRole` are the run's cluster file,
 `<Path>/<Cluster>.xmip`, which `XMIP_TEST_CLUSTER` names (the nodes to
 simulate, one process each, each declaring the roles `-NodeRole` gives it —
 `[nodes.RX1] roles = "receiving"`; a node it does not name declares nothing,
 and nothing here is worked out from a name; an empty list is a cluster of no
-nodes; omitted, the file holds every node the Essentials' own file declares,
-and the run record says the nodes and the file; the names `-Nodes` typed are
-`XMIP_ESSENTIALS_NAMED`, the only ones resolved for a real node), `-Certificate`
-is `XMIP_ESSENTIALS_CERTIFICATE`, the operator certificate a real node is
+nodes; omitted, the file holds every node the System Tests' own file declares,
+and the run record says the nodes and the file), `-Suite Core.Systems` is
+`XMIP_SYSTEM_TEST_MACHINES=true`, every node a machine, `-Certificate`
+is `XMIP_SYSTEM_TEST_CERTIFICATE`, the operator certificate a real node is
 asked with, `-OnlineNodes` is
-`XMIP_ESSENTIALS_ONLINE_NODES`
+`XMIP_SYSTEM_TEST_ONLINE_NODES`
 (which of them may assume the internet, by name, ADR-0045; unset, every node
 reads `XMIP_ONLINE`), `-Duration` is
-`XMIP_ESSENTIALS_MAX_SECONDS`, `-TimeFactor` is `XMIP_ESSENTIALS_TIME_FACTOR`
-and `-LoadBytes` is `XMIP_ESSENTIALS_LOAD_BYTES`. `-Hidden` is
-`XMIP_ESSENTIALS_HIDDEN=true`: the run declared itself hidden, and the roll
+`XMIP_SYSTEM_TEST_MAX_SECONDS`, `-TimeFactor` is `XMIP_SYSTEM_TEST_TIME_FACTOR`
+and `-LoadBytes` is `XMIP_SYSTEM_TEST_LOAD_BYTES`. `-Hidden` is
+`XMIP_SYSTEM_TEST_HIDDEN=true`: the run declared itself hidden, and the roll
 says so in its `[run]` table, the roll, the cluster and every node in their
 process declarations and on every audit record, so a surface leaves it out
 until asked (ADR-0028, amendment 2026-09-30). A roll started by hand —
-`cargo run --bin xmip-essentials-roll [rounds]` with those variables set — is the same roll,
+`cargo run --bin xmip-system-test-roll [rounds]` with those variables set — is the same roll,
 and `Get-XmipTestStatus` lists it too.
 
 `Start-XmipTest` returns at once, before the build: the roll, cluster and node
@@ -804,7 +810,7 @@ started again. `Stop-XmipTest` stops a build — its pwsh, cargo and the
 compilers beneath it — as it stops a roll, and a cluster still building is
 refused a second start as a rolling one is.
 
-Everything a run writes on this machine goes under `.local-work/essentials`
+Everything a run writes on this machine goes under `.local-work/system-test`
 at the repository root: `<cluster>-snapshot.xmip`, `<cluster>-history.toml`
 and `<cluster>-activity.toml` for the monitors (their shapes are `observe::Publication`'s, `observe::Curve`'s and `observe::Recent`'s), named for the cluster the roll
 was started as (`-Cluster`, required: the owner names the cluster), `roll-<pid>.toml` saying what
@@ -821,7 +827,7 @@ folder is device-local and ignored by git.
 The owner's demo is on 2026-12-18 and runs from `main`. `Core.Demo` proves
 a tree is demo-ready (ADR-0028, amendment
 2026-11-10). It is a suite of Xmip's own, started, observed and stopped as
-the Essentials is:
+the System Tests are:
 
 ```powershell
 Start-XmipTest -Suite Core.Demo -Cluster CL1 -Stress Realistic -Tester alice@example.org
@@ -835,8 +841,8 @@ and its log beside it under `.local-work/demo`, and its parts in order:
 
 | Part | What it does | OK when |
 | --- | --- | --- |
-| roll | rolls `-Cluster` from this tree at `-Stress` as `Start-XmipTest -Suite Core.Essentials` does | the build ended, `<cluster>-snapshot.xmip` is published within ten minutes of the roll's spawn, and then every node the run record declares runs |
-| web | `Start-XmipOperationWeb` over that snapshot with `-Tester` | its address answers https with a certificate that reaches the Essentials' authority's anchor, within a minute |
+| roll | rolls `-Cluster` from this tree at `-Stress` as `Start-XmipTest -Suite Core.System` does | the build ended, `<cluster>-snapshot.xmip` is published within ten minutes of the roll's spawn, and then every node the run record declares runs |
+| web | `Start-XmipOperationWeb` over that snapshot with `-Tester` | its address answers https with a certificate that reaches the System Tests' authority's anchor, within a minute |
 | desktop | `dotnet build` of the Desktop operations app for `net11.0-windows10.0.19041.0`; its deployed `gui.toml`, beside the executable and never the source, rewritten to `Surface = "snapshot"` and that `Snapshot` | the app stays up for a minute and declares it reads that snapshot: its process declaration's location, by the one rule both hosts declare by (ADR-0028, amendment 2026-11-21) |
 | extension | `Build-XmipService -Extension VsCode`, and `xmip-lsp` built by cargo in the extension's crate, in the estate's one workspace, whose committed `[patch]` builds every estate crate from its working tree | the VSIX and the server exist, and the server answers `initialize` over stdio with its capabilities |
 | stop | ends its own roll, the web host and the desktop app, each only while it is still what the run started, and gives the deployed `gui.toml` back as the build deploys it | every one is stopped; one that is not is FAILED and the rest are still stopped |

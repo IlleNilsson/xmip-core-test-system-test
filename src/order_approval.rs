@@ -1,4 +1,4 @@
-//! The Essentials' Work Process, *Order approval*: its design
+//! The System Tests' Work Process, *Order approval*: its design
 //! (`configuration/order-approval.bpmn`), the unit its nodes load (the
 //! example `order_approval`, what `process::generate` makes of the design,
 //! held to it by a test here), and what the design assigns, which the rig
