@@ -1,6 +1,7 @@
-//! What a cluster starts its nodes on: who they are and what each declared it
-//! can do, how hard they run, the tests they are told, which of them may
-//! assume the internet, and for how many rounds.
+//! What a cluster starts its nodes on: who they are and what each declared —
+//! its roles and its Node capabilities, `online` among them where it may
+//! assume the internet — how hard they run, the tests they are told, and for
+//! how many rounds.
 //!
 //! One value rather than seven arguments, so what the cluster process was told
 //! at the door (ADR-0055) is handed on to its nodes unchanged and nothing is
@@ -12,7 +13,6 @@ use node::Capability;
 use crate::roster::Roster;
 use crate::scenario::{ROUND_TRIP, drives};
 use crate::stress::Stress;
-use crate::switch::node_is_online;
 
 /// The orders a cluster spawns its nodes under.
 #[derive(Clone, Debug)]
@@ -20,12 +20,9 @@ pub struct Orders {
     /// How hard every node runs.
     pub stress: Stress,
     /// Every node, in the order they were named, with the capability each was
-    /// declared with; each node is told the whole roster so it finds the
-    /// others without asking anyone.
+    /// declared with, its Node capabilities among it; each node is told the
+    /// whole roster so it finds the others without asking anyone.
     pub roster: Roster,
-    /// The nodes that may assume the internet (ADR-0045). `None` leaves each
-    /// node to `XMIP_SYSTEM_TEST_ONLINE_NODES` and `XMIP_ONLINE`.
-    pub online: Option<Vec<String>>,
     /// The scenarios every node is told to run; empty means every one.
     pub scenarios: Vec<String>,
     /// Rounds a node runs before it exits on its own; `0` runs until stopped.
@@ -38,14 +35,12 @@ pub struct Orders {
 }
 
 impl Orders {
-    /// Orders for the nodes in `roster`: every scenario, online left to the
-    /// environment.
+    /// Orders for the nodes in `roster`: every scenario.
     #[must_use]
     pub fn of(stress: Stress, roster: Roster, rounds: u64) -> Self {
         Self {
             stress,
             roster,
-            online: None,
             scenarios: Vec::new(),
             rounds,
             cluster: String::new(),
@@ -68,43 +63,23 @@ impl Orders {
         self
     }
 
-    /// The same with the online nodes named outright rather than read from
-    /// the environment.
-    #[must_use]
-    pub fn with_online(mut self, online: Option<Vec<String>>) -> Self {
-        self.online = online;
-        self
-    }
-
     /// Every node's name, in the order they were named.
     #[must_use]
     pub fn names(&self) -> Vec<&str> {
         self.roster.names()
     }
 
-    /// Whether the node called `name` may assume the internet.
-    #[must_use]
-    pub fn is_online(&self, name: &str) -> bool {
-        self.online.as_deref().map_or_else(
-            || node_is_online(name),
-            |named| named.iter().any(|one| one.eq_ignore_ascii_case(name)),
-        )
-    }
-
-    /// The whole capability the node called `name` is started with: what it
-    /// was declared with, and whether it may assume the internet.
+    /// The whole capability the node called `name` is started with: its
+    /// roles and its Node capabilities, as the roster declares them.
     #[must_use]
     pub fn capability(&self, name: &str) -> Capability {
-        self.roster
-            .capability(name)
-            .with_online(self.is_online(name))
+        self.roster.capability(name)
     }
 
     /// Why these orders cannot be carried out, if they cannot: no node at
-    /// all, a node whose name no file can carry, an online node that is no
-    /// node of the cluster, or a `RoundTrip` whose roster leaves a capability
-    /// of the path undeclared. Asked before a process is spawned (ADR-0055
-    /// clause 2).
+    /// all, a node whose name no file can carry, or a `RoundTrip` whose
+    /// roster leaves a capability of the path undeclared. Asked before a
+    /// process is spawned (ADR-0055 clause 2).
     #[must_use]
     pub fn refusal(&self) -> Option<String> {
         if self.roster.is_empty() {
@@ -122,20 +97,6 @@ impl Orders {
         // carries a node marker of its own.
         if let Some(refusal) = names.iter().find_map(|name| crate::image::refusal(name)) {
             return Some(refusal);
-        }
-        let strangers: Vec<&str> = self
-            .online
-            .iter()
-            .flatten()
-            .map(String::as_str)
-            .filter(|one| !names.iter().any(|name| name.eq_ignore_ascii_case(one)))
-            .collect();
-        if !strangers.is_empty() {
-            return Some(format!(
-                "REFUSED: --online names {}, which --nodes does not; the nodes are {}.",
-                strangers.join(", "),
-                names.join(", ")
-            ));
         }
         drives(&self.scenarios, ROUND_TRIP)
             .then(|| self.roster.refusal())
@@ -157,8 +118,11 @@ mod tests {
         Roster::parse(text).expect("a well-formed roster")
     }
 
+    /// A node is started with the Node capabilities the roster declares for
+    /// it, `online` among them, and a node declaring none is offline
+    /// (ADR-0056, amendment 2026-11-24).
     #[test]
-    fn the_online_nodes_are_the_ones_named_and_nobody_else() {
+    fn a_node_is_started_with_the_node_capabilities_it_declares() {
         let cluster = test_cluster();
         let [receiving, processing, sending] = path(&cluster);
         // The receiving node's name in another case than its own.
@@ -167,12 +131,13 @@ mod tests {
         } else {
             receiving.to_uppercase()
         };
-        let orders = Orders::of(Stress::Calm, roster(&path_roster(&cluster)), 0)
-            .with_online(Some(vec![recased]));
-        assert!(orders.is_online(receiving), "named, whatever the case");
-        assert!(!orders.is_online(processing));
-        assert_eq!(orders.capability(receiving).word(), "online");
-        assert_eq!(orders.capability(sending).word(), "offline");
+        let declared = roster(&path_roster(&cluster))
+            .declaring(&format!("{recased}=online"))
+            .expect("a node of the roster, whatever the case");
+        let orders = Orders::of(Stress::Calm, declared, 0);
+        let online = node::Requirement::online();
+        assert!(orders.capability(receiving).satisfies(&online));
+        assert!(!orders.capability(processing).satisfies(&online));
         assert!(orders.capability(sending).can(Stage::Send));
         assert_eq!(orders.refusal(), None);
     }
@@ -194,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    fn no_node_a_stranger_online_and_a_missing_capability_are_each_refused() {
+    fn no_node_a_stranger_declaring_and_a_missing_capability_are_each_refused() {
         let none = Orders::of(Stress::Calm, Roster::default(), 0)
             .refusal()
             .expect("no nodes");
@@ -206,10 +171,9 @@ mod tests {
         let cluster = test_cluster();
         let [receiving, processing, sending] = path(&cluster);
         let absent = cluster.absent();
-        let stranger = Orders::of(Stress::Calm, roster(&path_roster(&cluster)), 0)
-            .with_online(Some(vec![absent.clone()]))
-            .refusal()
-            .expect("the absent name is no node");
+        let stranger = roster(&path_roster(&cluster))
+            .declaring(&format!("{absent}=online"))
+            .expect_err("the absent name is no node");
         let nodes = format!("{receiving}, {processing}, {sending}");
         assert!(
             stranger.contains(&absent) && stranger.contains(&nodes),

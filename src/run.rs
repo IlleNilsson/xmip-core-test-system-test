@@ -18,8 +18,8 @@ pub const CARRIED: &str = "Carried";
 /// one) over the nodes of `roster` at `stress`, those named in `real` on
 /// machines of their own and the rest simulated: the tests by the names a
 /// person asks for them — [`CARRIED`] alone where it is `served_only`, every
-/// node read — and what each node was started with, including its online
-/// capability. The shape is `observe::Run`'s; this only fills it.
+/// node read — and what each node was started with, its roles and its Node
+/// capabilities. The shape is `observe::Run`'s; this only fills it.
 #[must_use]
 pub fn started(
     cluster: &str,
@@ -47,10 +47,12 @@ pub fn started(
             .iter()
             .map(|name| roster.capability(name).entry(name))
             .collect(),
-        online: names
+        capabilities: names
             .iter()
-            .filter(|name| roster.capability(name).is_online())
-            .map(|name| (*name).to_string())
+            .map(|name| roster.capability(name))
+            .zip(&names)
+            .filter(|(capability, _)| !capability.declared().is_empty())
+            .map(|(capability, name)| capability.declared_entry(name))
             .collect(),
         stress: stress.name().to_string(),
         hidden: crate::environment::hidden(),
@@ -145,8 +147,8 @@ mod tests {
             .declared(
                 first,
                 node::Capability::parse("receiving")
-                    .expect("receiving")
-                    .with_online(true),
+                    .and_then(|roles| roles.with_declared(&[node::ONLINE.to_string()]))
+                    .expect("receiving, online"),
             );
         let c = cluster.name.as_str();
         let run = started(
@@ -160,7 +162,7 @@ mod tests {
         assert_eq!(run.tests, ["RoundTrip"]);
         assert_eq!(run.nodes, [first, second, bare]);
         assert_eq!(run.roles, roles);
-        assert_eq!(run.online, [first]);
+        assert_eq!(run.capabilities, [format!("{first}=online")]);
         assert_eq!((run.cluster.as_str(), run.stress.as_str()), (c, "harsh"));
 
         let every = started(c, (&[], false), &Roster::default(), Stress::Calm, &[]);

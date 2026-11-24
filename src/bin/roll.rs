@@ -47,12 +47,13 @@
 //!
 //! **The nodes are `cluster.xmip`** (ADR-0056, amendment
 //! 2026-10-03): `XMIP_TEST_CLUSTER` names the file, and every node under its
-//! `[nodes]` is one process, declaring the roles its `roles` says
-//! (`environment::roster`). `Start-XmipTest` writes the run's file from
-//! `-Cluster`, `-Nodes` and `-NodeRole`, or names the test cluster's where
-//! `-Nodes` was not given; nothing is counted or numbered.
-//! `XMIP_SYSTEM_TEST_ONLINE_NODES` names the ones among them that may assume
-//! the internet (ADR-0045); unset, every node reads `XMIP_ONLINE`.
+//! `[nodes]` is one process, declaring the roles its `roles` says and the
+//! Node capabilities its `capabilities` says, `online` among them where it
+//! may assume the internet (`environment::roster`; ADR-0045; ADR-0056,
+//! amendment 2026-11-24). `Start-XmipTest` writes the run's file from
+//! `-Cluster`, `-Nodes`, `-NodeRole` and `-NodeCapability`, or names the
+//! test cluster's where `-Nodes` was not given; nothing is counted or
+//! numbered.
 //!
 //! **A node declares its roles** (ADR-0056, amendment 2026-10-01) —
 //! `receiving`, `processing+sending`, or `executing` for all

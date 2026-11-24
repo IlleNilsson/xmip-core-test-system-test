@@ -74,28 +74,26 @@ impl Roster {
     }
 
     /// The roster a cluster's `cluster.xmip` declares: the nodes under its
-    /// `[nodes]`, in the order of their names, each declaring the roles its
-    /// `roles` says (`configure::cluster::roles`) and nothing where it says
-    /// none, and each Storage node `[storage] nodes` lists at its place there
+    /// `[nodes]`, in the file's order, each declaring the roles its `roles`
+    /// says and the Node capabilities its `capabilities` says
+    /// (`configure::cluster::capabilities`) and nothing where it says none,
+    /// and each Storage node `[storage] nodes` lists at its place there
     /// (`configure::cluster::storage_places`). The one place a roll's nodes
-    /// come from (ADR-0056, amendment 2026-10-03: names are configuration).
+    /// come from (ADR-0056, amendments 2026-10-03, names are configuration,
+    /// and 2026-11-24).
     ///
     /// # Errors
     ///
-    /// When the text is not a cluster's file, or a word is no role, as
-    /// [`Capability::parse`] refuses it.
+    /// When the text is not a cluster's file, a word is no role, or a Node
+    /// capability is none, as `configure::cluster::capabilities` refuses it.
     pub fn of_cluster(cluster: &str) -> Result<Self, String> {
-        let entries: Vec<String> = configure::cluster::roles(cluster)?
-            .into_iter()
-            .map(|(name, roles)| Capability::of(&roles).entry(&name))
-            .collect();
         Ok(Self {
+            nodes: configure::cluster::capabilities(cluster)?,
             places: configure::cluster::storage_places(cluster)?,
-            ..Self::parse(&entries.join(","))?
         })
     }
 
-    /// The roster as `--nodes` takes it back.
+    /// The roster as `--nodes` takes it back: each node and its roles.
     #[must_use]
     pub fn text(&self) -> String {
         self.nodes
@@ -103,6 +101,46 @@ impl Roster {
             .map(|(name, capability)| capability.entry(name))
             .collect::<Vec<String>>()
             .join(",")
+    }
+
+    /// Its nodes' Node capabilities as `--capabilities` takes them back:
+    /// `<node>=online+erp-direct`, comma separated, a node declaring none
+    /// left out (`node::Capability::declared_entry`).
+    #[must_use]
+    pub fn capabilities_text(&self) -> String {
+        self.nodes
+            .iter()
+            .filter(|(_, capability)| !capability.declared().is_empty())
+            .map(|(name, capability)| capability.declared_entry(name))
+            .collect::<Vec<String>>()
+            .join(",")
+    }
+
+    /// The same roster with the Node capabilities `--capabilities` says,
+    /// `<node>=online+erp-direct`, comma separated, given to each node named.
+    ///
+    /// # Errors
+    ///
+    /// REFUSED where an entry names no node of the roster, naming the nodes
+    /// there are, or a word that is no Node capability.
+    pub fn declaring(mut self, raw: &str) -> Result<Self, String> {
+        for entry in raw.split(',').map(str::trim).filter(|one| !one.is_empty()) {
+            let (name, words) = Capability::from_declared_entry(entry);
+            let words = words?;
+            let Some(at) = self
+                .nodes
+                .iter()
+                .position(|(one, _)| one.eq_ignore_ascii_case(name))
+            else {
+                return Err(format!(
+                    "REFUSED: --capabilities names {name}, which --nodes does not; the nodes are \
+                     {}.",
+                    self.names().join(", ")
+                ));
+            };
+            self.nodes[at].1 = self.nodes[at].1.clone().with_declared(&words)?;
+        }
+        Ok(self)
     }
 
     /// Every node's name, in the order they were named.
@@ -466,16 +504,17 @@ mod tests {
     fn the_roster_is_the_cluster_file_s_nodes_with_the_roles_each_declares() {
         let cluster = test_cluster();
         let read = Roster::of_cluster(&cluster.text).expect("the test cluster reads");
-        let every: Vec<&str> = cluster
-            .nodes
-            .iter()
-            .map(|node| node.name.as_str())
-            .collect();
-        assert_eq!(read.names(), every);
+        let every = configure::cluster::nodes(&cluster.text).expect("the file's nodes");
+        assert_eq!(read.names(), every, "in the file's order");
         for node in &cluster.nodes {
             let declared = node.roles.join(",");
             let expected = Capability::parse(&declared).expect("the test cluster's roles");
-            assert_eq!(read.capability(&node.name), expected, "{}", node.name);
+            assert_eq!(
+                read.capability(&node.name).roles(),
+                expected.roles(),
+                "{}",
+                node.name
+            );
         }
         assert!(read.covers_the_path());
 
@@ -483,6 +522,35 @@ mod tests {
         let bare = Roster::of_cluster(&format!("[nodes.{a}]\n\n[nodes.{b}]\n")).expect("reads");
         assert!(!bare.serves_any_stage() && !bare.covers_the_path());
         assert_eq!(bare.refusal(), None);
+        // Each node's Node capabilities come with it, and cross as
+        // `--capabilities` beside `--nodes` (ADR-0056, amendment 2026-11-24).
+        let online =
+            format!("[nodes.{a}]\ncapabilities = [\"online\", \"erp-direct\"]\n[nodes.{b}]\n");
+        let declaring = Roster::of_cluster(&online).expect("reads");
+        assert_eq!(
+            declaring.capability(&a).declared(),
+            ["online", "erp-direct"]
+        );
+        assert_eq!(
+            declaring.capabilities_text(),
+            format!("{a}=online+erp-direct")
+        );
+        let crossed = Roster::parse(&declaring.text())
+            .and_then(|roster| roster.declaring(&declaring.capabilities_text()))
+            .expect("crosses");
+        assert_eq!(
+            crossed,
+            declaring.without(&[]),
+            "the same roster on the far side"
+        );
+        let stranger = bare
+            .clone()
+            .declaring("nobody=online")
+            .expect_err("no such node");
+        assert!(
+            stranger.contains("--capabilities names nobody"),
+            "{stranger}"
+        );
         let unknown = format!("[nodes.{a}]\nroles = \"relay\"\n");
         assert!(Roster::of_cluster(&unknown).is_err(), "no role is no role");
         assert!(

@@ -48,7 +48,10 @@ pub(super) fn configured(
     // gives it: receive on the first serving receive, send on the first
     // serving send, and process on every node the one rule gives a Work
     // Process (`xcluster::every`); where none serves process, `placements`
-    // refuses each Work Process in its own words.
+    // refuses each Work Process in its own words. A simulated node has
+    // every environment the file's work requires: each declares every Node
+    // capability any of it requires (ADR-0056, amendment 2026-11-24), so it
+    // is placed as the handoff runs it, whatever the roster's nodes are.
     let candidates: Vec<(String, Capability)> = roster
         .names()
         .into_iter()
@@ -56,23 +59,42 @@ pub(super) fn configured(
         .collect();
     let processing: Vec<&str> = xcluster::every(Placed::Process.requirement(), &candidates)
         .map_or_default(|on| on.into_iter().map(|(one, _)| one.as_str()).collect());
-    let nodes: Vec<(String, Capability)> = candidates
-        .iter()
-        .map(|(one, _)| {
-            let serving: Vec<NodeRole> = [
-                (*one == receives).then_some(NodeRole::Receiving),
-                (*one == sends).then_some(NodeRole::Sending),
-                processing
-                    .contains(&one.as_str())
-                    .then_some(NodeRole::Processing),
-            ]
+    let mut required: Vec<String> = Vec::new();
+    for application in configure::applications(CLUSTER)? {
+        let receives = application
+            .receive_locations
             .into_iter()
-            .flatten()
-            .collect();
-            (one.clone(), Capability::of(&serving))
-        })
-        .filter(|(_, serving)| !serving.roles().is_empty())
+            .map(|one| one.requires);
+        let processes = application
+            .work_processes
+            .into_iter()
+            .map(|one| one.requires);
+        let sends = application.send_ports.into_iter().map(|one| one.requires);
+        for word in receives.chain(processes).chain(sends).flatten() {
+            if !required.contains(&word) {
+                required.push(word);
+            }
+        }
+    }
+    let mut nodes: Vec<(String, Capability)> = Vec::new();
+    for (one, _) in &candidates {
+        let serving: Vec<NodeRole> = [
+            (*one == receives).then_some(NodeRole::Receiving),
+            (*one == sends).then_some(NodeRole::Sending),
+            processing
+                .contains(&one.as_str())
+                .then_some(NodeRole::Processing),
+        ]
+        .into_iter()
+        .flatten()
         .collect();
+        if !serving.is_empty() {
+            nodes.push((
+                one.clone(),
+                Capability::of(&serving).with_declared(&required)?,
+            ));
+        }
+    }
     let placements = placed::placements(CLUSTER, &nodes)?;
     let bound = placed::written(&placements, |placement| placed::Binding {
         address: match placement.placed {

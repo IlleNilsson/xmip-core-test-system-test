@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use crate::roster::Roster;
 use crate::scenario;
-use crate::switch::node_is_online;
 
 /// The scenarios named in `XMIP_SYSTEM_TEST_SCENARIOS`: none named is every
 /// one.
@@ -23,32 +22,28 @@ pub fn scenarios() -> Result<Vec<String>, String> {
 }
 
 /// The variable naming `cluster.xmip` a roll spawns the nodes
-/// of: the run's own, written by `Start-XmipTest` from `-Cluster`, `-Nodes`
-/// and `-NodeRole`, or the test cluster's where `-Nodes` was not given
-/// (ADR-0056, amendment 2026-10-03). The variable the tests' fixtures read.
+/// of: the run's own, written by `Start-XmipTest` from `-Cluster`, `-Nodes`,
+/// `-NodeRole` and `-NodeCapability`, or the test cluster's where `-Nodes`
+/// was not given (ADR-0056, amendments 2026-10-03 and 2026-11-24). The
+/// variable the tests' fixtures read.
 pub const CLUSTER_FILE: &str = "XMIP_TEST_CLUSTER";
 
 /// The roster a roll spawns: the nodes the cluster's file
 /// [`CLUSTER_FILE`] names declares under `[nodes]`, each with the roles its
-/// `roles` says ([`Roster::of_cluster`]), and each carrying the online
-/// capability the environment says (ADR-0045, ADR-0056). Nothing is read
-/// out of a node's name, and nothing is counted or numbered: the nodes are
+/// `roles` says and the Node capabilities its `capabilities` says, `online`
+/// among them where it may assume the internet ([`Roster::of_cluster`];
+/// ADR-0045; ADR-0056, amendment 2026-11-24). Nothing is read out of a
+/// node's name, and nothing is counted or numbered: the nodes are
 /// configuration.
 ///
 /// # Errors
 ///
-/// When no file is named or it cannot be read, or a word is no role:
-/// REFUSED, naming the file (ADR-0055).
+/// When no file is named or it cannot be read, or a word is no role or no
+/// Node capability: REFUSED, naming the file (ADR-0055).
 pub fn roster() -> Result<Roster, String> {
     let (file, text) = cluster_file()?;
-    let mut roster = Roster::of_cluster(&text)
-        .map_err(|problem| format!("REFUSED: the cluster file {}: {problem}", file.display()))?;
-    let nodes: Vec<String> = roster.names().into_iter().map(str::to_string).collect();
-    for node in &nodes {
-        let capability = roster.capability(node).with_online(node_is_online(node));
-        roster = roster.declared(node, capability);
-    }
-    Ok(roster)
+    Roster::of_cluster(&text)
+        .map_err(|problem| format!("REFUSED: the cluster file {}: {problem}", file.display()))
 }
 
 /// The run's cluster file [`CLUSTER_FILE`] names, and its text.

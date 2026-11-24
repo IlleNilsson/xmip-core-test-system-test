@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! node --name <name> --shared <dir> --stress <level> --rounds <n> --snapshot <path>
-//!      [--interval-ms <ms>] [--beat-ms <ms>] [--online true|false]
+//!      [--interval-ms <ms>] [--beat-ms <ms>] [--capabilities online+...]
 //!      [--role receiving,processing] [--nodes <name[=role+role],...>]
 //!      [--scenarios <scenario,...>]
 //! ```
@@ -52,9 +52,9 @@
 //! claiming what this one was about to take is a lost race and a normal
 //! outcome; nothing here treats it as an error. The stress level sets the
 //! injected fault rates (none at `calm`), and the interval is the pause
-//! between rounds, a quarter of a second unless given. Online capability gates
-//! what is outside the cluster only: an offline node takes handoffs like any
-//! other.
+//! between rounds, a quarter of a second unless given. The Node capability
+//! `online` gates what is outside the cluster only: a node declaring none
+//! takes handoffs like any other.
 //!
 //! **It hears itself** (ADR-0065, amendment 2026-09-29; `eventing.rs`): two
 //! Parties subscribe in its own hub, it raises an Event for each stage whose
@@ -68,8 +68,8 @@
 //! act is asked at a node's door and reaches its node through Xmip Storage
 //! (ADR-0014, amendment 2026-11-13).
 //!
-//! Each round it publishes what it declared at `<node>/capability`, beside the
-//! `switch` record, so a surface reads a node's capabilities from the snapshot
+//! Each round it publishes what it declared at `<node>/capability`, its roles
+//! and its Node capabilities, so a surface reads them from the snapshot
 //! rather than from its name.
 //!
 //! **It audits** (ADR-0062): `start` with its scope, roles, stress and
@@ -95,16 +95,10 @@ use xmip_core_test_system_test::{
 };
 use xmip_core_test_system_test::{image, process_audit};
 
-/// What the node can do, recorded each round: its switch, offline in the
-/// estate's tests, and the capability it declared.
+/// What the node can do, recorded each round: the capability it declared,
+/// its roles and its Node capabilities, `online` among them where it may
+/// assume the internet (ADR-0056, amendment 2026-11-24).
 fn record_capability(snapshot: &mut Snapshot, node: &str, arguments: &Arguments) {
-    snapshot.record_health(record(
-        format!("{node}/switch"),
-        format!(
-            "{}; the estate's tests run offline",
-            arguments.capability.word()
-        ),
-    ));
     snapshot.record_health(record(
         observe::capability::scope(node),
         arguments.capability.evidence(),
@@ -257,7 +251,7 @@ fn declaration(
         ("snapshot", arguments.snapshot.display().to_string()),
         ("interval_ms", interval),
         ("role", arguments.capability.words()),
-        ("online", arguments.capability.is_online().to_string()),
+        ("capabilities", arguments.capability.declared().join("+")),
     ];
 
     said.into_iter().try_fold(
@@ -272,7 +266,7 @@ fn say_started(audit: &ProgramAudit, node: &str, arguments: &Arguments) {
         &[
             ("node", node),
             ("role", &arguments.capability.words()),
-            ("online", arguments.capability.word()),
+            ("capabilities", &arguments.capability.named()),
             ("stress", arguments.stress.name()),
             ("scenarios", &arguments.scenarios.join(",")),
             ("rounds", &arguments.rounds.to_string()),
@@ -336,8 +330,8 @@ fn relays(arguments: &Arguments, node: &str, subscribing: Option<&Arc<Subscribin
         .collect()
 }
 
-/// One health record of the node's own, always fine: what it declared, and
-/// the online capability's word. The cluster's board reads both per node
+/// One health record of the node's own, always fine: what it declared, its
+/// roles and its Node capabilities. The cluster's board reads both per node
 /// (ADR-0045, ADR-0056), and the topology takes a node's stages from the
 /// capability record rather than from its name.
 fn record(scope: String, evidence: String) -> observe::HealthRecord {

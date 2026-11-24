@@ -75,8 +75,11 @@ impl Spawned {
             // The cluster rolls until the roll stops it; its nodes run its
             // rounds, which is what `orders` carries.
             .args(["--rounds", "0"]);
-        if let Some(online) = orders.online.as_ref() {
-            command.args(["--online", &online.join(",")]);
+        // And each node's Node capabilities beside its roles (ADR-0056,
+        // amendment 2026-11-24).
+        let declared = orders.roster.capabilities_text();
+        if !declared.is_empty() {
+            command.args(["--capabilities", &declared]);
         }
         if !orders.scenarios.is_empty() {
             command.args(["--scenarios", &orders.scenarios.join(",")]);

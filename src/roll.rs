@@ -147,7 +147,7 @@ pub fn say_started(
             ("stress", &run.stress),
             ("tests", &run.tests.join(",")),
             ("nodes", &run.roles.join(",")),
-            ("online", &run.online.join(",")),
+            ("capabilities", &run.capabilities.join(",")),
             ("real", &run.real.join(",")),
             ("parties", &spread.parties().names().join(",")),
             ("rounds", &rounds),

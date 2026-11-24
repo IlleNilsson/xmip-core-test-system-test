@@ -58,7 +58,10 @@ struct Started {
 }
 
 /// What each node of the run declares, from the run's cluster file: its
-/// roles and its online capability (`configure::cluster::capabilities`).
+/// roles and its Node capabilities (`configure::cluster::capabilities`),
+/// which the run writes as it was given them or as the System Tests' own
+/// file declares them (`Write-XmipTestCluster`; ADR-0056, amendment
+/// 2026-11-24).
 fn roles() -> Result<Vec<(String, Capability)>, String> {
     let (_, text) = crate::environment::cluster_file()?;
     configure::cluster::capabilities(&text)

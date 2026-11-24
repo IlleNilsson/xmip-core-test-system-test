@@ -10,7 +10,6 @@ use node::Capability;
 use crate::roster::Roster;
 use crate::scenario;
 use crate::stress::Stress;
-use crate::switch;
 
 /// What the command line said.
 pub struct Arguments {
@@ -22,10 +21,11 @@ pub struct Arguments {
     pub interval: Duration,
     /// How often it beats, round or no round.
     pub beat: Duration,
-    /// What this node declared (ADR-0056): its roles from `--role`, and
-    /// from `--online` whether it may assume
-    /// the internet (ADR-0045). Published in its own health records, so the
-    /// cluster's board shows both per node.
+    /// What this node declared (ADR-0056): its roles from `--role`, and its
+    /// Node capabilities from `--capabilities`, `online` among them where it
+    /// may assume the internet (ADR-0045; ADR-0056, amendment 2026-11-24).
+    /// Published in its own health records, so the cluster's board shows
+    /// both per node.
     pub capability: Capability,
     /// Every node of the cluster and what each declared, this one among them;
     /// empty when not told.
@@ -37,7 +37,7 @@ pub struct Arguments {
 /// What the node prints on a refused command line: every flag, and an
 /// example.
 pub const USAGE: &str = "usage: node --name <name> --shared <dir> --stress <level> --rounds <n> \
-     --snapshot <path> [--interval-ms <ms>] [--beat-ms <ms>] [--online true|false] \
+     --snapshot <path> [--interval-ms <ms>] [--beat-ms <ms>] [--capabilities online+...] \
      [--role receiving,processing] [--nodes <name[=role+role],...>] \
      [--scenarios <scenarios>]\n\
      example: node --name RX1 --shared shared --stress calm --rounds 0 \
@@ -59,7 +59,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Arguments, String> {
     let mut snapshot = None;
     let mut interval = Duration::from_millis(250);
     let mut beat = Duration::from_millis(100);
-    let mut online = false;
+    let mut declared = Vec::new();
     let mut role = Capability::none();
     let mut roster = Roster::default();
     let mut scenarios = Vec::new();
@@ -77,10 +77,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Arguments, String> {
             "--snapshot" => snapshot = Some(PathBuf::from(value)),
             "--interval-ms" => interval = Duration::from_millis(number(&flag, &value)?),
             "--beat-ms" => beat = Duration::from_millis(number(&flag, &value)?.max(1)),
-            "--online" => {
-                online = switch::parse(&value)
-                    .ok_or(format!("--online wants true or false, not {value}"))?;
-            }
+            "--capabilities" => declared = crate::capability::read(&value)?,
             "--role" => role = Capability::parse(&value)?,
             "--nodes" => roster = Roster::parse(&value)?,
             "--scenarios" => scenarios = scenario::chosen(Some(&value))?,
@@ -96,7 +93,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Arguments, String> {
         snapshot: snapshot.ok_or("--snapshot is required")?,
         interval,
         beat,
-        capability: role.with_online(online),
+        capability: role.with_declared(&declared)?,
         roster,
         scenarios,
     })
@@ -160,11 +157,19 @@ mod tests {
             &nodes,
             "--role",
             "receiving",
+            "--capabilities",
+            "online+erp-direct",
         ])
-        .expect("all three are well formed");
+        .expect("all four are well formed");
         assert_eq!(told.scenarios, ["round-trip"]);
         assert_eq!(told.roster.names(), [receiving, processing, sending]);
         assert_eq!(told.capability.words(), "receiving");
+        assert_eq!(told.capability.declared(), ["online", "erp-direct"]);
+        assert!(
+            arguments(&["--capabilities", "Online"])
+                .err()
+                .is_some_and(|refused| refused.contains("no Node capability"))
+        );
         assert_eq!(
             arguments(&["--scenarios", ""])
                 .expect("empty is every one")

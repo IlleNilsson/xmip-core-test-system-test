@@ -1,59 +1,21 @@
-//! Where the online capability is read from the environment (ADR-0045): the
-//! variables, and the rule that turns them into whether one node may assume a
-//! route to the internet.
+//! Whether this test process may reach the internet (ADR-0045): the one
+//! variable, `XMIP_ONLINE`, and the words it reads.
 //!
-//! The capability itself lives in `capability.rs` — online capability is one
-//! of ADR-0056's four kinds, not a notion of its own, and what a node carries
-//! is one [`Capability`](node::Capability). This file stayed for
-//! the environment it reads.
+//! It is the test process's own, never a node's. Whether a node may assume
+//! the internet is the Node capability `online` its cluster's file declares
+//! for it, as every other Node capability is (ADR-0056, amendment
+//! 2026-11-24), read with its roles into its [`Capability`](node::Capability).
 //!
-//! False unless set. Nothing in the estate reaches out at runtime, so at
-//! every stress level the default is that no emulated node may; the switch
-//! exists so the first test that genuinely needs the internet reads it and
-//! stays silent without it, rather than bringing the suite online with it.
-//! `XMIP_ONLINE=true` is how an operator or a roll says the world is there.
-
-/// Whether the cluster's node called `name` may assume the internet: online
-/// when `XMIP_SYSTEM_TEST_ONLINE_NODES` names it, else — the variable unset —
-/// whatever `XMIP_ONLINE` says for every node.
-#[must_use]
-pub fn node_is_online(name: &str) -> bool {
-    node_online(name, online_nodes().as_deref(), online())
-}
+//! False unless set. Nothing in the estate reaches out at runtime, so the
+//! default is that no test may; the switch exists so the first test that
+//! genuinely needs the internet reads it and stays silent without it, rather
+//! than bringing the suite online with it. `XMIP_ONLINE=true` is how an
+//! operator says the world is there.
 
 /// Whether this process may assume the internet: `XMIP_ONLINE=true`.
 #[must_use]
 pub fn online() -> bool {
     std::env::var("XMIP_ONLINE").is_ok_and(|raw| parse(&raw) == Some(true))
-}
-
-/// The cluster's nodes that may assume the internet, by name:
-/// `XMIP_SYSTEM_TEST_ONLINE_NODES`, comma separated; `None` when unset. Set and
-/// empty means none of them.
-#[must_use]
-pub fn online_nodes() -> Option<Vec<String>> {
-    std::env::var("XMIP_SYSTEM_TEST_ONLINE_NODES")
-        .ok()
-        .map(|raw| names(&raw))
-}
-
-/// A comma-separated list of node names, trimmed, empties dropped.
-#[must_use]
-pub fn names(raw: &str) -> Vec<String> {
-    raw.split(',')
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map(str::to_string)
-        .collect()
-}
-
-/// The rule behind [`node_is_online`], with the environment already read: a
-/// list names the online nodes, case-insensitively; no list leaves it to `all`.
-#[must_use]
-pub fn node_online(name: &str, online: Option<&[String]>, all: bool) -> bool {
-    online.map_or(all, |online| {
-        online.iter().any(|one| one.eq_ignore_ascii_case(name))
-    })
 }
 
 /// The switch a word means: `true`, `false`, `yes`, `no`, `on`, `off`.
@@ -87,20 +49,6 @@ mod tests {
         assert_eq!(parse("TRUE"), Some(true));
         assert_eq!(parse("off"), Some(false));
         assert_eq!(parse("maybe"), None);
-    }
-
-    #[test]
-    fn a_list_names_the_online_nodes_and_no_list_defers_to_all() {
-        let cluster = crate::support::test_cluster();
-        let [first, second, other] = [0, 1, 2].map(|place| cluster.node(place).name.as_str());
-        let online = names(&format!(" {first}, {second} ,, "));
-        assert_eq!(online, [first, second]);
-        assert!(node_online(first, Some(&online), false));
-        assert!(node_online(second, Some(&online), false));
-        assert!(!node_online(other, Some(&online), true));
-        assert!(!node_online(first, Some(&[]), true));
-        assert!(node_online(other, None, true));
-        assert!(!node_online(other, None, false));
     }
 
     #[test]

@@ -6,8 +6,10 @@
 //! every node of the run — the nodes `-Nodes` named, or the cluster file's —
 //! and the cluster's own name, `-Cluster`, are resolved through this
 //! machine's own resolver, at the port the cluster's own cluster.xmip says
-//! the node is operated on. A node whose name does not resolve is REFUSED,
-//! and none is spawned in its place. A name that resolves is not yet
+//! the node is operated on. Every node whose name does not resolve is
+//! REFUSED, all of them in one sentence before any node is asked, with the
+//! `-Nodes` that run the ones that resolve, and none is spawned in its
+//! place. A name that resolves is not yet
 //! trusted: it must answer over its operate listener, inside Xmip's mutual
 //! TLS with the operator certificate the run names
 //! (`environment::certificate`), declare itself the node of that name in
@@ -20,7 +22,6 @@
 //! publishes through the runtime's one gatherer (`runtime::plane::gather`,
 //! [`gathered`]), and the run says per node which it is.
 
-use std::net::ToSocketAddrs;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -32,7 +33,10 @@ use xcluster::{ClusterError, Member, Membership};
 
 use crate::environment;
 use crate::roster::Roster;
-use crate::subscribing::CLUSTER;
+
+mod mapped;
+
+use mapped::{mapped, operate_port, resolving};
 
 /// A run's nodes, sorted: the real ones as they answered, their names, the
 /// roster with each real node's roles as it declared them, and the
@@ -228,9 +232,9 @@ impl RealNode {
 ///
 /// # Errors
 ///
-/// REFUSED, naming the name: one that does not resolve, a resolving name
-/// the rig holds no certificate to ask, one that does not answer, or one
-/// that answers as something else.
+/// REFUSED, naming every name that does not resolve at once ([`mapped`]);
+/// then, naming the name, a resolving name the rig holds no certificate to
+/// ask, one that does not answer, or one that answers as something else.
 pub fn found(
     cluster: &str,
     names: &[String],
@@ -247,58 +251,18 @@ pub fn found(
         }
     }
     let mut real = Vec::new();
-    for name in names {
-        let port = operate_port(cluster, Some(name))?;
-        let Some(address) = resolving(name, &port) else {
-            return Err(format!(
-                "REFUSED: {name} does not resolve, at port {port}: the Systems Tests run on \
-                 the environment's machines and spawn no node in a machine's place"
-            ));
-        };
-        let remote = answering(name, &address, certificate)?;
-        let capability = declared(cluster, name, &address, &remote)?;
+    for (name, address) in mapped(cluster, names)? {
+        let remote = answering(&name, &address, certificate)?;
+        let capability = declared(cluster, &name, &address, &remote)?;
         real.push(RealNode {
-            name: name.clone(),
-            scope: scope_of(cluster, name),
+            scope: scope_of(cluster, &name),
+            name,
             address,
             capability,
             remote: Arc::new(remote),
         });
     }
     Ok(real)
-}
-
-/// The port the cluster's own cluster.xmip says `node` is operated on — the
-/// first node it declares where `node` is none of them, or none is named —
-/// as `[operate] listen` says it, read through the configuration's own
-/// slice and reader.
-fn operate_port(cluster: &str, node: Option<&str>) -> Result<String, String> {
-    let declared = configure::cluster::nodes(CLUSTER)?;
-    let asked = node
-        .filter(|name| declared.iter().any(|one| one == name))
-        .or_else(|| declared.first().map(String::as_str))
-        .ok_or("REFUSED: the System Tests' cluster.xmip declares no node")?;
-    let document = configure::parse_toml(&configure::slice_named(CLUSTER, asked, cluster)?)?;
-    let listen = document
-        .operate
-        .and_then(|operate| operate.listen)
-        .ok_or_else(|| {
-            format!("REFUSED: the System Tests' cluster.xmip operates {asked} nowhere")
-        })?;
-    listen
-        .rsplit_once(':')
-        .map(|(_, port)| port.to_string())
-        .ok_or_else(|| format!("REFUSED: [operate] listen {listen} names no port"))
-}
-
-/// `name` at `port`, where this machine's resolver knows the name.
-fn resolving(name: &str, port: &str) -> Option<String> {
-    let address = format!("{name}:{port}");
-    address
-        .to_socket_addrs()
-        .ok()
-        .and_then(|mut found| found.next())
-        .map(|_| address)
 }
 
 /// The operate listener at `address`, opened with the operator certificate
@@ -407,6 +371,24 @@ mod tests {
             .expect("a machine that is not there is refused, never spawned");
         assert!(
             refused.starts_with("REFUSED: no-such-node.invalid does not resolve"),
+            "{refused}"
+        );
+    }
+
+    #[test]
+    fn every_node_that_does_not_resolve_is_refused_at_once_naming_the_nodes_that_do() {
+        let cluster = test_cluster();
+        let names = ["OP1.invalid", "localhost", "XX1.invalid"].map(str::to_string);
+        // No certificate: nothing is asked before every name has resolved.
+        let refused = found(&cluster.name, &names, None)
+            .err()
+            .expect("two machines that are not there are refused");
+        assert!(
+            refused.starts_with("REFUSED: OP1.invalid, XX1.invalid do not resolve"),
+            "{refused}"
+        );
+        assert!(
+            refused.contains("-Nodes localhost runs the nodes that resolve"),
             "{refused}"
         );
     }

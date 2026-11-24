@@ -5,14 +5,17 @@
 //! ```text
 //! cluster --name <cluster> --shared <dir> --nodes <a[=role+role],b,...>
 //!         --stress <level> --rounds <n> --snapshot <path>
-//!         [--online <a,b>] [--scenarios <a,b>] [--interval-ms <ms>]
+//!         [--capabilities <a=online+...,b=...>] [--scenarios <a,b>]
+//!         [--interval-ms <ms>]
 //! ```
 //!
 //! `--nodes` carries what each node is **declared** with — `<node>=receiving`,
 //! `<node>=processing+sending`, or a bare name for a node that declares no
 //! role — and the cluster passes each node's own to it as `--role`
 //! (ADR-0056, amendment 2026-10-01). A role word is lowercase exactly, and
-//! any other word is REFUSED (`node::NodeRole::declared`). It infers
+//! any other word is REFUSED (`node::NodeRole::declared`). `--capabilities`
+//! carries each node's Node capabilities, `<node>=online+erp-direct`, passed
+//! on as its own `--capabilities` (amendment 2026-11-24). It infers
 //! nothing: a name is not a role.
 //!
 //! The tree the owner asked for is three deep. `xmip-system-test-roll` is the
@@ -56,7 +59,6 @@ use xmip_core_test_system_test::cluster::{Cluster, Orders, node_binary};
 use xmip_core_test_system_test::roster::Roster;
 use xmip_core_test_system_test::scenario;
 use xmip_core_test_system_test::stress::Stress;
-use xmip_core_test_system_test::switch::names;
 use xmip_core_test_system_test::{cluster_name, cluster_root, node_toml};
 use xmip_core_test_system_test::{image, process_audit};
 
@@ -68,11 +70,10 @@ struct Arguments {
     /// contended tests' stores, the nodes' own snapshots, and `stop`.
     shared: PathBuf,
     /// Every node to spawn, one process each, with the roles each is
-    /// declared with; the cluster passes them on and infers nothing.
+    /// declared with and the Node capabilities `--capabilities` gives it,
+    /// `online` among them where it may assume the internet (ADR-0056,
+    /// amendment 2026-11-24); the cluster passes them on and infers nothing.
     nodes: Roster,
-    /// The nodes that may assume the internet (ADR-0045); `None` when the
-    /// flag was not given, which leaves it to the environment.
-    online: Option<Vec<String>>,
     stress: Stress,
     /// The scenarios every node is told to run; empty means every one.
     scenarios: Vec<String>,
@@ -85,7 +86,8 @@ struct Arguments {
 
 const USAGE: &str = "usage: cluster --name <cluster> --shared <dir> \
      --nodes <a[=role+role],b,...> --stress <level> --rounds <n> \
-     --snapshot <path> [--online <a,b>] [--scenarios <a,b>] [--interval-ms <ms>]\n\
+     --snapshot <path> [--capabilities <a=online+...,b=...>] [--scenarios <a,b>] \
+     [--interval-ms <ms>]\n\
      example: cluster --name CL1 --shared shared --nodes RX1=receiving,PX1=processing,TX1=sending \
      --stress calm --rounds 0 --snapshot CL1-snapshot.xmip\n\
      The names are the tester's and mean nothing to Xmip; each node's roles are \
@@ -128,7 +130,6 @@ fn main() -> ExitCode {
 
     let orders = Orders::of(arguments.stress, arguments.nodes.clone(), 0)
         .driving(&arguments.scenarios)
-        .with_online(arguments.online.clone())
         .in_cluster(&arguments.name);
     if let Some(refusal) = orders.refusal() {
         return refuse(&audit, &refusal);
@@ -214,7 +215,7 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Arguments, String> {
     let mut name = None;
     let mut shared = None;
     let mut nodes = None;
-    let mut online = None;
+    let mut declared = None;
     let mut stress = None;
     let mut scenarios = Vec::new();
     let mut rounds = None;
@@ -228,7 +229,7 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Arguments, String> {
             "--name" => name = Some(cluster_named(&value)?),
             "--shared" => shared = Some(PathBuf::from(value)),
             "--nodes" => nodes = Some(Roster::parse(&value)?),
-            "--online" => online = Some(names(&value)),
+            "--capabilities" => declared = Some(value),
             "--stress" => stress = Some(level(&value)?),
             "--scenarios" => scenarios = scenario::chosen(Some(&value))?,
             "--rounds" => rounds = Some(number(&flag, &value)?),
@@ -237,21 +238,21 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Arguments, String> {
             other => {
                 return Err(format!(
                     "REFUSED: no flag is called {other}; the flags are --name, --shared, \
-                     --nodes, --online, --stress, --scenarios, --rounds, --snapshot and \
+                     --nodes, --capabilities, --stress, --scenarios, --rounds, --snapshot and \
                      --interval-ms"
                 ));
             }
         }
     }
 
+    let nodes: Roster = nodes.ok_or(
+        "REFUSED: --nodes is required; --nodes <node>=receiving,<node>=processing,\
+         <node>=sending names them and what each declares",
+    )?;
     Ok(Arguments {
         name: name.ok_or("REFUSED: --name is required; a cluster is named, never invented")?,
         shared: shared.ok_or("REFUSED: --shared is required; it is the store the nodes share")?,
-        nodes: nodes.ok_or(
-            "REFUSED: --nodes is required; --nodes <node>=receiving,<node>=processing,\
-             <node>=sending names them and what each declares",
-        )?,
-        online,
+        nodes: nodes.declaring(declared.as_deref().unwrap_or_default())?,
         stress: stress.ok_or(format!(
             "REFUSED: --stress is required; it is one of {}",
             Stress::NAMES.join(", ")
@@ -345,22 +346,28 @@ mod tests {
         assert_eq!(bare.nodes.capability(&processing).words(), "processing");
         assert_eq!(bare.stress, Stress::Calm);
         assert_eq!(bare.interval, Duration::from_millis(250));
-        assert!(bare.online.is_none() && bare.scenarios.is_empty());
+        assert!(bare.nodes.capabilities_text().is_empty() && bare.scenarios.is_empty());
 
-        let online = format!("{receiving}, {sending}");
+        let declared = format!("{receiving}=online, {sending}=online+erp-direct");
         let told = arguments(&[
-            "--online",
-            &online,
+            "--capabilities",
+            &declared,
             "--scenarios",
             "Round-Trip",
             "--interval-ms",
             "500",
         ])
         .expect("all three are well formed");
+        assert_eq!(told.nodes.capability(&receiving).declared(), ["online"]);
         assert_eq!(
-            told.online.as_deref(),
-            Some([receiving, sending].as_slice())
+            told.nodes.capability(&sending).declared(),
+            ["online", "erp-direct"]
         );
+        assert_eq!(
+            told.nodes.capability(&processing).declared(),
+            [] as [String; 0]
+        );
+        assert!(arguments(&["--capabilities", "nobody=online"]).is_err());
         assert_eq!(told.scenarios, ["round-trip"]);
         assert_eq!(told.interval, Duration::from_millis(500));
     }

@@ -52,12 +52,16 @@ anchors = "tls/anchors.pem"
 
 # The nodes, named as the owner names them (ADR-0056, amendment 2026-11-12),
 # as his node plan of 2026-11-22 lays them out: RX1 to RX3 receive, TX1 to
-# TX3 send, EX1 works between them, the Work Process "Order approval" there,
+# TX3 send, EX1 works between them, Order approval's module installed there,
 # EX2 receives, processes and sends in one node at low latency, OP1 operates
 # and monitors, DS1 and DS2 keep Xmip Storage. One node covering every role
 # works too; receiving, executing and sending nodes are split as security,
 # firewall and load need (ADR-0056, amendment 2026-11-22). What each does is
-# its roles, never its letters.
+# its roles, never its letters. Beside its roles, which are Xmip's, a node
+# declares its Node capabilities, `capabilities`: what its environment gives
+# it, a firewall opening, software installed, a system it reaches, in words
+# Xmip only matches against what work requires (ADR-0056, amendment
+# 2026-11-24).
 
 [nodes.RX1]
 roles = "receiving"
@@ -68,11 +72,16 @@ roles = "receiving"
 [nodes.RX3]
 roles = "receiving"
 
+# Order approval's module is installed here.
 [nodes.EX1]
 roles = "processing"
+capabilities = ["order-approval-module"]
 
+# Party-D's and Party-E's firewall openings reach this node, and it reaches
+# the ERP directly.
 [nodes.EX2]
 roles = "executing"
+capabilities = ["firewall-party-d", "firewall-party-e", "erp-direct"]
 
 [nodes.TX1]
 roles = "sending"
@@ -195,16 +204,20 @@ offline = true
 # and resumes these Subscriptions in the Subscriptions view (ADR-0013,
 # amendment 2026-09-30); they are added and removed here, and nowhere else.
 #
-# Where each runs is placed, never written here (`configure::placed`): each
-# Receive Location goes to the next node serving Receive and each Send Port
-# to the next serving Send, round robin, a Work Process to every node
-# serving its stage. Listed as they are, the executing node takes the
-# remittance advices and the inventory reports and sends them on itself,
-# each received and sent in one node; the sales orders pass Order approval,
-# on the processing node and, as every node serving the stage runs it, on
-# the executing node too; every other document goes from a receiving node to
-# a sending node; and every node of the plan takes work (ADR-0028, amendment
-# 2026-11-22).
+# Where each piece of work runs is placed (`configure::placed`), by what it
+# requires and what each node declares, never by a node's name: each Receive
+# Location goes to the next node serving Receive and each Send Port to the
+# next serving Send, round robin in this file's order, a Work Process to
+# every node serving its stage, and work naming Node capabilities in
+# `requires` only to the nodes declaring each of them (ADR-0056, amendment
+# 2026-11-24).
+# So the remittance advices and the inventory reports, which come in through
+# Party-E's and Party-D's firewall openings and go to the ERP directly, are
+# received and sent on in one node, the executing one; the sales orders pass
+# Order approval where its module is installed, on the processing node
+# alone; every other document goes round the nodes serving its stage; and
+# every node of the plan takes work (ADR-0028, amendment 2026-11-24). The
+# Subscriptions filter on what a document holds, never on a node.
 
 [[xmip_applications]]
 name = "Order to cash"
@@ -222,6 +235,7 @@ name = "Order to cash documents from ERP"
 name = "Remittance advices from Party-E"
 receive_port = "Remittance advices"
 depth = "light"
+requires = ["firewall-party-e"]
 
 [[xmip_applications.receive_locations]]
 name = "Sales orders from Party-A"
@@ -241,6 +255,7 @@ depth = "light"
 
 [[xmip_applications.send_ports]]
 name = "Remittance advices to ERP"
+requires = ["erp-direct"]
 
 [[xmip_applications.send_ports]]
 name = "Sales orders to ERP"
@@ -267,6 +282,7 @@ failover = "next"
 name = "Order approval"
 module = "order-approval"
 unit = "OrderApproval"
+requires = ["order-approval-module"]
 
 [[xmip_applications.subscriptions]]
 id = "Sales orders"
@@ -317,6 +333,7 @@ name = "Procure to pay documents from ERP"
 name = "Inventory reports from Party-D"
 receive_port = "Inventory"
 depth = "light"
+requires = ["firewall-party-d"]
 
 [[xmip_applications.receive_locations]]
 name = "Purchase order responses from Party-B"
@@ -345,6 +362,7 @@ name = "Purchase orders to Party-B"
 
 [[xmip_applications.send_ports]]
 name = "Inventory reports to ERP"
+requires = ["erp-direct"]
 
 [[xmip_applications.send_ports]]
 name = "Item master to Party-D"

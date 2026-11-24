@@ -289,14 +289,19 @@ mod tests {
 
     #[test]
     fn two_runs_issue_their_nodes_under_the_one_system_test_authority() {
-        // A node that keeps Xmip Storage and one covering every stage beside
-        // it, which works alone (ADR-0056, amendment 2026-11-22), as the
-        // System Tests' own file declares them, and the test cluster's name.
+        // A node that keeps Xmip Storage, one covering every stage beside it
+        // (ADR-0056, amendment 2026-11-22), and the processing node, which
+        // alone declares what Order approval requires (amendment
+        // 2026-11-24), as the System Tests' own file declares them, and the
+        // test cluster's name.
         let roles = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
         let storage = |node: &&(String, Capability)| node.1.roles().contains(&NodeRole::Storage);
+        let processing =
+            |node: &&(String, Capability)| node.1.roles().contains(&NodeRole::Processing);
         let declared: Vec<(String, Capability)> = [
             roles.iter().find(storage),
             roles.iter().find(|node| node.1.executes()),
+            roles.iter().find(processing),
         ]
         .into_iter()
         .map(|node| node.expect("a node of each kind").clone())
@@ -451,11 +456,11 @@ mod tests {
     /// The owner's node plan, 2026-11-22, held over the System Tests' own
     /// files as a run places them, every node found by what it declares:
     /// every node serving a stage takes work; the Work Process runs on every
-    /// processing node; an executing node receives documents and
-    /// sends them on itself, no Work Process between; other documents go
-    /// from a receiving node to a sending one; every sender reaches every
-    /// node that receives within as many rounds as there are senders; and
-    /// each receiver is reached by an executing node and a sending one.
+    /// processing node; an executing node receives documents and sends them
+    /// on itself, no Work Process between; other documents go from a
+    /// receiving node to a sending one; every sender reaches every node that
+    /// receives within as many rounds as there are senders; and each receiver
+    /// is reached by an executing node and a sending one.
     #[test]
     fn the_system_test_files_put_every_node_and_far_end_of_the_plan_to_work() {
         use crate::external::{FILE, named, sender};
@@ -552,6 +557,73 @@ mod tests {
                     role.name()
                 );
             }
+        }
+    }
+
+    /// The plan's work runs where the file says its environment is: the
+    /// Work Process where its module is installed, on the processing node
+    /// alone and on no executing node, and each piece of work only on a node
+    /// declaring every Node capability it requires (ADR-0056, amendment
+    /// 2026-11-24).
+    #[test]
+    fn the_plan_s_work_runs_on_the_nodes_declaring_what_it_requires() {
+        let declared = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
+        let of = |node: &str| {
+            let found = declared.iter().find(|(name, _)| name == node);
+            found.expect("declared").1.clone()
+        };
+        let designed = configure::applications(CLUSTER).expect("the file's Applications");
+        let requires = |placement: &Placement| -> Vec<String> {
+            let application = designed
+                .iter()
+                .find(|one| one.name == placement.application);
+            let application = application.expect("its Application");
+            let named = |name: &String| *name == placement.name;
+            match placement.placed {
+                Placed::Receive => application
+                    .receive_locations
+                    .iter()
+                    .find(|one| named(&one.name))
+                    .map(|one| one.requires.clone()),
+                Placed::Send => application
+                    .send_ports
+                    .iter()
+                    .find(|one| named(&one.name))
+                    .map(|one| one.requires.clone()),
+                Placed::Process => application
+                    .work_processes
+                    .iter()
+                    .find(|one| named(&one.name))
+                    .map(|one| one.requires.clone()),
+            }
+            .expect("designed")
+        };
+        let placements = placed::placements(CLUSTER, &declared).expect("placed");
+        assert!(
+            placements.iter().any(|one| !requires(one).is_empty()),
+            "some work requires"
+        );
+        for placement in &placements {
+            let node = of(&placement.node);
+            for word in requires(placement) {
+                assert!(
+                    node.declared().contains(&word),
+                    "{placement:?} on a node declaring {word}"
+                );
+            }
+        }
+        let running: Vec<&Placement> = placements
+            .iter()
+            .filter(|one| one.placed == Placed::Process)
+            .collect();
+        assert!(!running.is_empty(), "the Work Process runs");
+        for placement in running {
+            let node = of(&placement.node);
+            assert!(
+                node.roles().contains(&NodeRole::Processing),
+                "{placement:?}"
+            );
+            assert!(!node.executes(), "no executing node runs it: {placement:?}");
         }
     }
 

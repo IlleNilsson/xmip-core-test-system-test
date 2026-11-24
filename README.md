@@ -143,7 +143,10 @@ amendment 2026-10-21). It declares the cluster's eleven nodes and their roles,
 as the owner's node plan of 2026-11-22 lays them out — RX1 to RX3 receiving,
 EX1 processing, EX2 executing, TX1 to TX3 sending, OP1 operational and
 monitoring, DS1 and DS2 storage (ADR-0028 and ADR-0056, amendments
-2026-11-22) —
+2026-11-22) — the Node capabilities two of them declare, EX1 Order
+approval's module installed, `order-approval-module`, and EX2 Party-D's and
+Party-E's firewall openings and a direct link to the ERP, which the work
+placed on them requires (amendments 2026-11-24) —
 where each that stores nothing reaches the Storage nodes, by name, where
 every node is operated from, with its certificate's paths relative to its
 configuration, the Parties and the Xmip Applications — and nothing of where
@@ -390,7 +393,7 @@ into its own each round, and stops it when the rounds run out.
 
 The **cluster** (`src/bin/cluster.rs`) is a [`Cluster`] and nothing else. It
 takes `--name --shared --nodes --stress --rounds --snapshot`, with
-`--online`, `--scenarios` and `--interval-ms` optional; a value it cannot read
+`--capabilities`, `--scenarios` and `--interval-ms` optional; a value it cannot read
 is REFUSED with exit code 2, naming what was wrong and what would be right
 (ADR-0055). Its scope root is `XMIP_SYSTEM_TEST_CLUSTER`, which the roll sets
 on it and which its own nodes inherit, so all three agree without being told
@@ -414,7 +417,7 @@ orphaned. `Get-XmipProcess` shows all three kinds with the location and
 purpose each declared, and `Get-XmipTestNode` reports a node's roll, which is
 now its grandparent. A node also declares the flags it was started with —
 `node`, `shared`, `stress`, `rounds`, `snapshot`, `interval_ms`, `role`,
-`online` — and `Get-XmipTestNode` reads those from its declaration through the
+`capabilities` — and `Get-XmipTestNode` reads those from its declaration through the
 node's own reader, never from its command line (ADR-0053, amendment
 2026-09-27).
 
@@ -563,8 +566,8 @@ and sending one each, executing all three in one process, the low-latency
 choice, which keeps each pair it received to the end with no process hop. A
 node serving no stage behaves as every node did before: it runs the
 shared-directory tests whole and no part of RoundTrip. Two of ADR-0056's four
-kinds are modeled here, the roles and online capability (`--online`,
-ADR-0045); authentication and runtime capability are not, and the node's own
+kinds are modeled here, the roles and the Node capabilities, `online` among
+them (`--capabilities`, ADR-0045; ADR-0056, amendment 2026-11-24); authentication and runtime capability are not, and the node's own
 capability record says so rather than leaving it to be guessed.
 
 The words are not the System Tests'. `node::NodeRole` (`xmip-core-node`) is
@@ -573,7 +576,7 @@ the one declaration and `NodeRole::declared` the one parse: `--role`,
 `node::Stage` is the message-path stage every verdict, hop and scope here
 uses. The declaration itself — the evidence a node publishes and the
 `RX1=receiving` entry a run lists — is `node::Capability`; `capability.rs`
-keeps only the `--role`/`--online` flags the cluster starts a node process
+keeps only the `--role`/`--capabilities` flags the cluster starts a node process
 with. A word is lowercase exactly (the owner, 2026-09-24), and an unknown
 word is REFUSED by name, never dropped (open problem 25, row i). Placement —
 which node receives a pair and which one it is handed to — is the roster's
@@ -643,9 +646,9 @@ inbox per node per stage, `<shared>/handoff/<node>/<stage>/`: written under a
 temporary name and renamed into place, claimed by the receiver by rename, so a
 file has one holder (the semantics ADR-0024's claim rests on). Every delivered
 handoff is a hop, counted per link with the stage at either end and the time of
-the last one, published in the node's file and drawn as a link. `--online
-false` gates what is outside the cluster only: an offline node takes handoffs
-like any other. This rehearses option A of `doc/planning/open-problems.md`
+the last one, published in the node's file and drawn as a link. The Node
+capability `online` gates what is outside the cluster only: a node declaring
+none takes handoffs like any other. This rehearses option A of `doc/planning/open-problems.md`
 problem 17 in the rig; it rules nothing for the runtime.
 
 **The topology** (`topology.rs` composes it; the model, its words, and the
@@ -736,10 +739,12 @@ nodes, or name each file taken twice and by whom and each never taken.
 
 
 **The run says what it was started with** (`run.rs` fills `observe::Run`): the snapshot carries a
-`[run]` table — `cluster`, `tests`, `nodes`, `roles`, `online`, `stress` —
+`[run]` table — `cluster`, `tests`, `nodes`, `roles`, `capabilities`, `stress` —
 that a reader which does not know it skips, and the web GUI shows as one line
 on every view. `roles` is what each node was started with, `RX1=receiving` or
-`PX1=processing+sending`, a node that declared nothing listed by name alone.
+`PX1=processing+sending`, a node that declared nothing listed by name alone;
+`capabilities` is each node's Node capabilities, `RX1=online+erp-direct`, a
+node declaring none left out (ADR-0056, amendment 2026-11-24).
 
 
 
@@ -786,10 +791,9 @@ nodes; omitted, the file holds every node the System Tests' own file declares,
 and the run record says the nodes and the file), `-Suite Core.Systems` is
 `XMIP_SYSTEM_TEST_MACHINES=true`, every node a machine, `-Certificate`
 is `XMIP_SYSTEM_TEST_CERTIFICATE`, the operator certificate a real node is
-asked with, `-OnlineNodes` is
-`XMIP_SYSTEM_TEST_ONLINE_NODES`
-(which of them may assume the internet, by name, ADR-0045; unset, every node
-reads `XMIP_ONLINE`), `-Duration` is
+asked with, `-NodeCapability` is each node's `capabilities = [...]` in the run's
+cluster file (its Node capabilities, `online` among them where it may assume
+the internet, ADR-0045; ADR-0056, amendment 2026-11-24), `-Duration` is
 `XMIP_SYSTEM_TEST_MAX_SECONDS`, `-TimeFactor` is `XMIP_SYSTEM_TEST_TIME_FACTOR`
 and `-LoadBytes` is `XMIP_SYSTEM_TEST_LOAD_BYTES`. `-Hidden` is
 `XMIP_SYSTEM_TEST_HIDDEN=true`: the run declared itself hidden, and the roll

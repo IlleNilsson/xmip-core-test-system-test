@@ -15,10 +15,10 @@ fn a_spawned_cluster_publishes_its_nodes_and_stops_them_with_itself() {
     let dir = scratch("spawned");
     let test = test_cluster();
     let [receiving, processing, sending] = path(&test);
-    let roster = Roster::parse(&path_roster(&test)).expect("a well-formed roster");
-    let orders = Orders::of(Stress::Calm, roster, 0)
-        .driving(&["round-trip".to_string()])
-        .with_online(Some(vec![receiving.to_string()]));
+    let roster = Roster::parse(&path_roster(&test))
+        .and_then(|roster| roster.declaring(&format!("{receiving}=online")))
+        .expect("a well-formed roster");
+    let orders = Orders::of(Stress::Calm, roster, 0).driving(&["round-trip".to_string()]);
     let published_to = dir.join(format!("{}-cluster.xmip", test.name));
     let mut cluster = Spawned::start(
         cluster_binary(),
