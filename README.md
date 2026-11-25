@@ -795,11 +795,7 @@ asked with, `-NodeCapability` is each node's `capabilities = [...]` in the run's
 cluster file (its Node capabilities, `online` among them where it may assume
 the internet, ADR-0045; ADR-0056, amendment 2026-11-24), `-Duration` is
 `XMIP_SYSTEM_TEST_MAX_SECONDS`, `-TimeFactor` is `XMIP_SYSTEM_TEST_TIME_FACTOR`
-and `-LoadBytes` is `XMIP_SYSTEM_TEST_LOAD_BYTES`. `-Hidden` is
-`XMIP_SYSTEM_TEST_HIDDEN=true`: the run declared itself hidden, and the roll
-says so in its `[run]` table, the roll, the cluster and every node in their
-process declarations and on every audit record, so a surface leaves it out
-until asked (ADR-0028, amendment 2026-09-30). A roll started by hand —
+and `-LoadBytes` is `XMIP_SYSTEM_TEST_LOAD_BYTES`. A roll started by hand —
 `cargo run --bin xmip-system-test-roll [rounds]` with those variables set — is the same roll,
 and `Get-XmipTestStatus` lists it too.
 
@@ -854,8 +850,7 @@ and its log beside it under `.local-work/demo`, and its parts in order:
 `web` and `desktop` are SKIPPED where the roll did not pass, with the roll's
 reason; `extension` is tried whatever the roll did. The run is OK only where
 every part is OK, and a run that breaks off is FAILED. `-Stress` omitted is
-`Realistic`, the stress the demo runs at. `-Hidden` hides the run and the
-roll it starts. Refused before anything starts: any other switch, a missing
+`Realistic`, the stress the demo runs at. Refused before anything starts: any other switch, a missing
 `-Cluster`, a run of the check still running, and a cluster that already
 rolls or builds — the check proves the roll it builds itself and never
 follows one; stop that roll first, or name another cluster.

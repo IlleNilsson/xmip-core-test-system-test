@@ -122,7 +122,7 @@ fn main() -> ExitCode {
     // record from here carries it (ADR-0062, amendment 2026-09-29).
     audit.locate(&root);
     let _declared = ::node::Declaration::new(called, &root, ::node::Purpose::Test)
-        .and_then(|declaration| process_audit::declared(&audit, declaration))
+        .and_then(|declaration| process_audit::declared(&declaration))
         .map_err(|error| {
             let problem = format!("cluster {root}: could not declare itself: {error}");
             process_audit::fail(&audit, "declare", &problem);

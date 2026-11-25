@@ -61,6 +61,7 @@ fn published(
             evidence: "its own".to_string(),
             roles: String::new(),
             place: None,
+            standing: None,
         };
         let own = Topology {
             nodes: vec![endpoint],

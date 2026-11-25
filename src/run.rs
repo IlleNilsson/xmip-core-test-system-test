@@ -55,7 +55,6 @@ pub fn started(
             .map(|(capability, name)| capability.declared_entry(name))
             .collect(),
         stress: stress.name().to_string(),
-        hidden: crate::environment::hidden(),
         real: real.to_vec(),
     }
 }

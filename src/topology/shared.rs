@@ -65,6 +65,7 @@ fn store(snapshot: &Snapshot, names: &[&str]) -> TopologyNode {
         evidence,
         roles: String::new(),
         place: None,
+        standing: None,
     }
 }
 

@@ -67,7 +67,7 @@ fn main() -> ExitCode {
     audit.locate(&scope);
     let _declared = node::Declaration::new(called, &scope, node::Purpose::Test)
         .and_then(|declaration| declaration.with("does", started.does.word()))
-        .and_then(|declaration| process_audit::declared(&audit, declaration))
+        .and_then(|declaration| process_audit::declared(&declaration))
         .map_err(|error| {
             let problem = format!(
                 "external {}: could not declare itself: {error}",

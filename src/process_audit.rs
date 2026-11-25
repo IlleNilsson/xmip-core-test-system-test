@@ -20,8 +20,6 @@ use runtime::declared::{Declared, declare};
 use xaudit::program_audit::ProgramAudit;
 use xcore::{ExecutionPhase, Severity};
 
-use crate::environment;
-
 /// The audit of the process `called`, as it starts: the operating system's
 /// log of this platform handed to audit for when it cannot persist
 /// (ADR-0062 clause 3), and its records kept by the file sink in the
@@ -35,34 +33,16 @@ pub fn program(called: &str) -> ProgramAudit {
     ProgramAudit::new(called, FileSink::stated(None))
 }
 
-/// The process declared (ADR-0053 clause 3): `declaration`, saying
-/// `hidden = "true"` beside it where the run declared itself hidden
-/// ([`environment::hidden`]) — and then every record `audit` makes from
-/// here says so too (ADR-0028, amendment 2026-09-30) — written where the
-/// node says, by the runtime's one writer, and standing while what this
+/// The process declared (ADR-0053 clause 3): `declaration`, written where
+/// the node says, by the runtime's one writer, and standing while what this
 /// answers is held. The roll, the cluster and every node declare through
 /// this, so the three say it the same way.
 ///
 /// # Errors
 ///
-/// When the declaration cannot say it, as [`Declaration::with`] refuses, or
-/// its file could not be written.
-pub fn declared(audit: &ProgramAudit, declaration: Declaration) -> Result<Declared, String> {
-    let declaration = declared_as(audit, declaration, environment::hidden())?;
-    declare(&declaration).map_err(|error| error.to_string())
-}
-
-/// [`declared`], told whether the run is hidden rather than reading it.
-fn declared_as(
-    audit: &ProgramAudit,
-    declaration: Declaration,
-    hidden: bool,
-) -> Result<Declaration, String> {
-    if !hidden {
-        return Ok(declaration);
-    }
-    audit.hide();
-    declaration.with("hidden", "true")
+/// When its file could not be written.
+pub fn declared(declaration: &Declaration) -> Result<Declared, String> {
+    declare(declaration).map_err(|error| error.to_string())
 }
 
 /// Record that the process started, with what it was started as.
@@ -113,8 +93,7 @@ fn owned(properties: &[(&str, &str)]) -> BTreeMap<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::{cluster_name, cluster_root, scratch};
-    use node::Purpose;
+    use crate::support::{cluster_name, scratch};
 
     /// The test cluster's name, and its roll's program name.
     fn named() -> (String, String) {
@@ -147,23 +126,5 @@ mod tests {
         ] {
             assert!(text.contains(said), "{said} in {text}");
         }
-    }
-
-    #[test]
-    fn a_hidden_run_says_so_in_the_declaration_and_on_every_record() {
-        let directory = scratch("process-audit-hidden");
-        let (cluster, roll) = named();
-        let audit = ProgramAudit::new(&roll, Some(FileSink::new(&*directory)));
-        let bare = || Declaration::new(&roll, cluster_root(), Purpose::Test).expect("a name");
-
-        let shown = declared_as(&audit, bare(), false).expect("declared");
-        assert!(!format!("{shown:?}").contains("hidden"), "{shown:?}");
-        assert!(!audit.hidden(), "a run that declared nothing is not hidden");
-
-        let hidden = declared_as(&audit, bare(), true).expect("declared");
-        assert!(format!("{hidden:?}").contains("hidden"), "{hidden:?}");
-        start(&audit, &[("cluster", cluster.as_str())]);
-        let text = std::fs::read_to_string(FileSink::new(&*directory).path()).expect("read");
-        assert!(text.contains("hidden = \"true\""), "{text}");
     }
 }

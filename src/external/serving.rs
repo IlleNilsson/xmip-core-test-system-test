@@ -291,10 +291,14 @@ pub fn run(name: &str, folder: &Path, ended: Ended) -> Result<u8, String> {
         let service = runtime::registration::node_service_name(name);
         control_manager::run(&service, stopping, serving)
     }
+    // Its unit is the runtime's, `Type=notify`: systemd counts it started
+    // once it says it is ready, its port open, and stopped it every 90
+    // seconds until 2026-11-25, when it said nothing.
     #[cfg(not(windows))]
     {
         let _ = name;
         let serving = std::thread::spawn(move || serve(&listener, &config, &sftp, &*ended));
+        runtime::registration::readiness::ready();
         let _ = serving.join();
         Ok(0)
     }
