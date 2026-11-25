@@ -4,7 +4,7 @@
 //! `test/XmipTest.Test.ps1` holds that file against this one, so a switch the
 //! roll reads is a switch an operator can reach.
 
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -18,8 +18,17 @@ pub const PROCESS: &str = "Process";
 /// What a run runs as on the virtual machines [`machines`] names.
 pub const VIRTUAL_MACHINE: &str = "VirtualMachine";
 
-/// The variable naming each node's and far end's virtual machine.
+/// What a run runs as in the containers [`machines`] names, each listener
+/// the roll asks reached where its port is published on this computer.
+pub const CONTAINER: &str = "Container";
+
+/// The variable naming each node's and far end's virtual machine or
+/// container.
 const MACHINES: &str = "XMIP_SYSTEM_TEST_MACHINES";
+
+/// The variable naming where this computer reaches each container's
+/// listeners, published by the container tool.
+const PUBLISHED: &str = "XMIP_SYSTEM_TEST_PUBLISHED";
 
 /// The scenarios named in `XMIP_SYSTEM_TEST_SCENARIOS`: none named is every
 /// one.
@@ -90,30 +99,46 @@ pub fn service() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// The virtual machines the run runs on, `XMIP_SYSTEM_TEST_MACHINES`, which
-/// `Start-XmipTest -VirtualMachine` sets, for the System Tests and the
-/// Systems Tests alike, from what `Deploy-XmipEnvironment`
-/// recorded on this host: each node's and far end's `name=address`, comma
+/// The virtual machines or containers the run runs on,
+/// `XMIP_SYSTEM_TEST_MACHINES`, which `Start-XmipTest -VirtualMachine` sets,
+/// for the System Tests and the Systems Tests alike, from what
+/// `Deploy-XmipEnvironment` recorded on this host, and `-Container` from
+/// the containers it made: each node's and far end's `name=address`, comma
 /// separated. Every node of the run is then the machine at its address and
 /// none is spawned in its place, and no name is resolved; `None` where it
-/// is unset, and the run is local processes (ADR-0028, amendment
-/// 2026-11-25).
+/// is unset, and the run is local processes (ADR-0028, amendments
+/// 2026-11-25). In containers `XMIP_SYSTEM_TEST_PUBLISHED` says where this
+/// computer reaches each listener the roll asks ([`Machines::published`]).
 ///
 /// # Errors
 ///
-/// REFUSED, in words, where an entry is malformed ([`Machines::parse`]).
+/// REFUSED, in words, where an entry is malformed ([`Machines::parse`],
+/// [`Machines::published`]).
 pub fn machines() -> Result<Option<Machines>, String> {
-    std::env::var(MACHINES)
-        .ok()
-        .filter(|said| !said.trim().is_empty())
-        .map(|said| Machines::parse(&said))
-        .transpose()
+    let given = |name: &str| {
+        std::env::var(name)
+            .ok()
+            .filter(|said| !said.trim().is_empty())
+    };
+    let Some(said) = given(MACHINES) else {
+        return Ok(None);
+    };
+    let machines = Machines::parse(&said)?;
+    match given(PUBLISHED) {
+        Some(published) => machines.published(&published).map(Some),
+        None => Ok(Some(machines)),
+    }
 }
 
-/// Each node's and far end's virtual machine, by name, as
-/// `XMIP_SYSTEM_TEST_MACHINES` says it.
+/// Each node's and far end's virtual machine or container, by name, as
+/// `XMIP_SYSTEM_TEST_MACHINES` says it, and in containers where this
+/// computer reaches each listener the roll asks, as
+/// `XMIP_SYSTEM_TEST_PUBLISHED` says it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Machines(Vec<(String, IpAddr)>);
+pub struct Machines {
+    at: Vec<(String, IpAddr)>,
+    published: Vec<(String, u16, SocketAddr)>,
+}
 
 impl Machines {
     /// The machines `said` names: `name=address`, comma separated.
@@ -129,7 +154,8 @@ impl Machines {
             let refused = |why: &str| {
                 format!(
                     "REFUSED: {MACHINES} says {entry}, {why}; Start-XmipTest -VirtualMachine \
-                     sets it from what Deploy-XmipEnvironment recorded"
+                     sets it from what Deploy-XmipEnvironment recorded, -Container from the \
+                     containers it made"
                 )
             };
             let (name, address) = entry
@@ -150,24 +176,98 @@ impl Machines {
             }
             machines.push((name.to_string(), address));
         }
-        Ok(Self(machines))
+        Ok(Self {
+            at: machines,
+            published: Vec::new(),
+        })
     }
 
-    /// The address of the machine `name` runs on, where one is named.
+    /// These machines, containers, with where this computer reaches each
+    /// listener `said` names: `name:port=address:port`, comma separated, a
+    /// container's port at the address the container tool published it on.
+    ///
+    /// # Errors
+    ///
+    /// REFUSED, naming the entry, where it is no `name:port=address:port`,
+    /// its name is no machine's, or a listener is said twice.
+    pub fn published(mut self, said: &str) -> Result<Self, String> {
+        for entry in said.split(',').map(str::trim).filter(|one| !one.is_empty()) {
+            let refused = |why: &str| {
+                format!(
+                    "REFUSED: {PUBLISHED} says {entry}, {why}; Start-XmipTest -Container sets \
+                     it from the ports it published"
+                )
+            };
+            let (listener, at) = entry
+                .split_once('=')
+                .ok_or_else(|| refused("which is no name:port=address:port"))?;
+            let (name, port) = listener
+                .trim()
+                .split_once(':')
+                .and_then(|(name, port)| Some((name, port.parse::<u16>().ok()?)))
+                .ok_or_else(|| refused("whose listener is no name:port"))?;
+            let at: SocketAddr = at
+                .trim()
+                .parse()
+                .map_err(|_| refused("whose address is no address:port"))?;
+            if self.address(name).is_none() {
+                return Err(refused(&format!("and {MACHINES} names no {name}")));
+            }
+            if self
+                .published
+                .iter()
+                .any(|(known, on, _)| known == name && *on == port)
+            {
+                return Err(refused("a listener said twice"));
+            }
+            self.published.push((name.to_string(), port, at));
+        }
+        Ok(self)
+    }
+
+    /// The address of the machine `name` runs on, where one is named: where
+    /// the other machines reach it.
     #[must_use]
     pub fn address(&self, name: &str) -> Option<IpAddr> {
-        self.0
+        self.at
             .iter()
             .find(|(known, _)| known == name)
             .map(|(_, address)| *address)
+    }
+
+    /// Where this computer reaches the listener on `port` of the machine
+    /// `name`: where its port is published, in containers; at the machine's
+    /// own address otherwise. `None` where no machine is named.
+    #[must_use]
+    pub fn reached(&self, name: &str, port: u16) -> Option<SocketAddr> {
+        self.published
+            .iter()
+            .find(|(known, on, _)| known == name && *on == port)
+            .map(|(_, _, at)| *at)
+            .or_else(|| {
+                self.address(name)
+                    .map(|address| SocketAddr::new(address, port))
+            })
+    }
+
+    /// What the run runs as on these machines: [`CONTAINER`] where their
+    /// ports are published, [`VIRTUAL_MACHINE`] otherwise.
+    #[must_use]
+    pub fn runs_as(&self) -> &'static str {
+        if self.published.is_empty() {
+            VIRTUAL_MACHINE
+        } else {
+            CONTAINER
+        }
     }
 }
 
 /// The folder of the operator certificate a roll asks a real node with,
 /// `XMIP_SYSTEM_TEST_CERTIFICATE`, which `Start-XmipTest -VirtualMachine`
-/// sets to the one `Deploy-XmipEnvironment` made: `operator.pem`, the chain
-/// the cluster's authority signed, `operator.key` and `anchors.pem`, that
-/// authority. `None` where nothing named one.
+/// sets to the one `Deploy-XmipEnvironment` made, and `-Container` to the
+/// one it made: `operator.pem`, the chain the cluster's authority signed,
+/// `operator.key` and `anchors.pem`, that authority. `None` where nothing
+/// named one.
 #[must_use]
 pub fn certificate() -> Option<PathBuf> {
     std::env::var_os("XMIP_SYSTEM_TEST_CERTIFICATE")
@@ -318,6 +418,60 @@ mod tests {
             );
             assert!(refused.contains(why), "{said}: {refused}");
             assert!(refused.contains("Deploy-XmipEnvironment"), "{refused}");
+        }
+    }
+
+    /// In containers each listener the roll asks is reached where its port
+    /// is published on this computer, and the container's own address is
+    /// where the others reach it; a listener not published is at that
+    /// address, and the run runs as containers.
+    #[test]
+    fn a_published_listener_is_reached_where_it_is_published() {
+        let cluster = test_cluster();
+        let (node, far) = (&cluster.node(0).name, &cluster.node(1).name);
+        let machines = Machines::parse(&format!("{node}=192.0.2.20,{far}=192.0.2.21"))
+            .expect("two containers");
+        assert_eq!(machines.runs_as(), VIRTUAL_MACHINE, "nothing published");
+        let said = format!("{node}:7401=127.0.0.1:50001, {far}:7423=127.0.0.1:50002");
+        let published = machines.published(&said).expect("two listeners");
+        let local = |port: u16| Some(SocketAddr::from(([127, 0, 0, 1], port)));
+        assert_eq!(published.reached(node, 7401), local(50001));
+        assert_eq!(published.reached(far, 7423), local(50002));
+        assert_eq!(
+            published.reached(node, 7443),
+            Some(SocketAddr::from(([192, 0, 2, 20], 7443))),
+            "a port not published is at the container's own address"
+        );
+        assert_eq!(published.address(node), Some([192, 0, 2, 20].into()));
+        assert_eq!(published.runs_as(), CONTAINER);
+        assert_eq!(published.reached("absent", 7401), None);
+    }
+
+    /// A published listener that is no `name:port=address:port`, names no
+    /// machine, or is said twice is refused in words, naming the entry.
+    #[test]
+    fn a_malformed_published_listener_is_refused_naming_it() {
+        let cluster = test_cluster();
+        let name = &cluster.node(0).name;
+        let machines = Machines::parse(&format!("{name}=192.0.2.20")).expect("one");
+        let cases = [
+            (format!("{name}:7401"), "no name:port=address:port"),
+            (format!("{name}=127.0.0.1:1"), "no name:port"),
+            (format!("{name}:7401=127.0.0.1"), "no address:port"),
+            ("absent:7401=127.0.0.1:1".to_string(), "names no absent"),
+            (
+                format!("{name}:7401=127.0.0.1:1,{name}:7401=127.0.0.1:2"),
+                "a listener said twice",
+            ),
+        ];
+        for (said, why) in cases {
+            let refused = machines.clone().published(&said).expect_err(&said);
+            assert!(
+                refused.starts_with(&format!("REFUSED: {PUBLISHED} says ")),
+                "{refused}"
+            );
+            assert!(refused.contains(why), "{said}: {refused}");
+            assert!(refused.contains("Start-XmipTest -Container"), "{refused}");
         }
     }
 }

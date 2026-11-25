@@ -75,8 +75,8 @@ pub fn found(real: &[RealNode]) -> Option<String> {
         .map(|node| format!("{} at {}", node.name, node.address))
         .collect();
     Some(format!(
-        "  real, each read where it answers — on a virtual machine of its own, or started \
-         here as xmip-service: {}; the rest simulated",
+        "  real, each read where it answers — on a virtual machine or in a container of its \
+         own, or started here as xmip-service: {}; the rest simulated",
         named.join(", ")
     ))
 }

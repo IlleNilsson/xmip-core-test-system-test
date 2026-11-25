@@ -1,18 +1,21 @@
-//! Where the nodes on virtual machines are, the System Tests' and the
-//! Systems Tests' alike: each node of the run at the
-//! address of its machine as the deployed environment recorded it
+//! Where the nodes on virtual machines or in containers are, the System
+//! Tests' and the Systems Tests' alike: each node of the run at the
+//! address of its machine as the deployed environment recorded it, or its
+//! container as `Start-XmipTest -Container` made it
 //! (`environment::machines`), at the port the cluster's own cluster.xmip
-//! operates the node on, every node looked up before any is asked; no name
-//! is resolved (ADR-0028, amendment 2026-11-25).
+//! operates the node on, reached where that port is published in
+//! containers, every node looked up before any is asked; no name is
+//! resolved (ADR-0028, amendments 2026-11-25).
 
 use std::net::SocketAddr;
 
 use crate::environment::Machines;
 use crate::subscribing::CLUSTER;
 
-/// Each of `names` of `cluster` at its machine's address in `machines`, at
-/// the port the cluster's own cluster.xmip operates it on, every name
-/// looked up before any node is asked.
+/// Each of `names` of `cluster` where this computer reaches its operate
+/// listener in `machines`: its machine's address, at the port the cluster's
+/// own cluster.xmip operates it on, or where that port is published; every
+/// name looked up before any node is asked.
 ///
 /// # Errors
 ///
@@ -27,8 +30,8 @@ pub(super) fn mapped(
     let mut unmapped = Vec::new();
     for name in names {
         let port = operate_port(cluster, Some(name))?;
-        match machines.address(name) {
-            Some(address) => mapped.push((name.clone(), SocketAddr::new(address, port))),
+        match machines.reached(name, port) {
+            Some(at) => mapped.push((name.clone(), at)),
             None => unmapped.push(name.as_str()),
         }
     }

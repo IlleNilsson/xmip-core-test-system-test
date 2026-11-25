@@ -65,19 +65,22 @@
 //! role. A node serving no stage runs the shared-directory tests whole, as
 //! before. A node's name decides none of this.
 //!
-//! **As local processes or on virtual machines** (ADR-0028, amendment
-//! 2026-11-25), the System Tests and the Systems Tests alike, as
-//! `Start-XmipTest -Process` or `-VirtualMachine` chose:
+//! **As local processes, on virtual machines or in containers** (ADR-0028,
+//! amendments 2026-11-25), the System Tests and the Systems Tests alike, as
+//! `Start-XmipTest -Process`, `-VirtualMachine` or `-Container` chose:
 //! on virtual machines `XMIP_SYSTEM_TEST_MACHINES` names each node's and far
 //! end's machine, `name=address`, from what `Deploy-XmipEnvironment`
-//! recorded, and every node of the run must answer at its machine as that
-//! node of this cluster over its operate listener, asked with the operator
-//! certificate `XMIP_SYSTEM_TEST_CERTIFICATE` names — never spawned,
-//! configured or stopped, its publication followed by the runtime's one
-//! gatherer (`runtime::plane::gather`) and merged each round; one with no
-//! machine or that does not answer is REFUSED by name, and none is spawned
-//! in its place. No name is resolved. `[run] real` and the first lines say
-//! which nodes are real (`real.rs`), and `[run] runs_as` which the run is.
+//! recorded, in containers each one's container as `-Container` made it,
+//! and `XMIP_SYSTEM_TEST_PUBLISHED` where this computer reaches each
+//! listener the roll asks; every node of the run must answer at its machine
+//! as that node of this cluster over its operate listener, asked with the
+//! operator certificate `XMIP_SYSTEM_TEST_CERTIFICATE` names — never
+//! spawned, configured or stopped, its publication followed by the
+//! runtime's one gatherer (`runtime::plane::gather`) and merged each round;
+//! one with no machine or that does not answer is REFUSED by name, and none
+//! is spawned in its place. No name is resolved. `[run] real` and the first
+//! lines say which nodes are real (`real.rs`), and `[run] runs_as` which
+//! the run is.
 //!
 //! **As local processes, a node is started as `xmip-service`** where the
 //! run was given one, `XMIP_SYSTEM_TEST_SERVICE`, and one of those nodes
@@ -89,7 +92,8 @@
 //! **Real nodes are driven through the far ends outside the cluster**, the
 //! System Tests' cluster file's `[environment.far_ends]` (`external.rs`):
 //! as local processes each a process of its own here, on virtual machines
-//! each on its own, at the address `XMIP_SYSTEM_TEST_MACHINES` gives it; they
+//! or in containers each on its own, at the address
+//! `XMIP_SYSTEM_TEST_MACHINES` gives it; they
 //! drop into the Receive Locations and tell what the Send Ports put
 //! (`carried.rs`).
 //!

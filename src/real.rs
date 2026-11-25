@@ -1,14 +1,17 @@
 //! The System Tests, which test the internals, and the Systems Tests, which
 //! test how nodes interact (the owner, 2026-11-25), each run as local
-//! processes on one computer or on virtual machines of their own, as
-//! `Start-XmipTest -Process` or `-VirtualMachine` chose (ADR-0028, amendment
-//! 2026-11-25; the owner: *there has to be a switch to run the tests, demo,
-//! as local processes or VMs*).
+//! processes on one computer, on virtual machines or in containers of their
+//! own, as `Start-XmipTest -Process`, `-VirtualMachine` or `-Container`
+//! chose (ADR-0028, amendments 2026-11-25; the owner: *there has to be a
+//! switch to run the tests, demo, as local processes or VMs*, and *We missed
+//! a switch -As Container*).
 //!
 //! The switch says which (`environment::machines`), never a name or a suite. On
-//! virtual machines every node of the cluster file is real, at the address
-//! of the machine the deployed environment recorded for it, at the port the
-//! cluster's own cluster.xmip says the node is operated on; a node with no
+//! virtual machines and in containers every node of the cluster file is
+//! real, at the address of the machine the deployed environment recorded
+//! for it, or of the container made for it, at the port the cluster's own
+//! cluster.xmip says the node is operated on, reached where that port is
+//! published in containers; a node with no
 //! machine is REFUSED, all of them in one sentence before any node is
 //! asked, and none is spawned in its place. A machine is not yet trusted:
 //! its node must answer over its operate listener, inside Xmip's mutual
@@ -265,7 +268,7 @@ fn answering_at(name: &str, address: &str, folder: Option<&Path>) -> Result<Remo
         format!(
             "REFUSED: {name}, at {address}: the run holds no operator certificate to ask it \
              whether it is an Xmip node; Start-XmipTest -VirtualMachine names the one \
-             Deploy-XmipEnvironment made"
+             Deploy-XmipEnvironment made, and -Container the one it made"
         )
     })?;
     let identity = operator(folder)?;

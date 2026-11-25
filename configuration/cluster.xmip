@@ -63,8 +63,9 @@ anchors = "tls/anchors.pem"
 # declares its Node capabilities, `capabilities`: what its environment gives
 # it, a firewall opening, software installed, a system it reaches, in words
 # Xmip only matches against what work requires (ADR-0056, amendment
-# 2026-11-24). RX1 has the internet, `online`: on a virtual machine it alone
-# is given the way out, through the gateway below.
+# 2026-11-24). RX1 and TX3 have the internet, `online`: on virtual machines
+# they alone are given the way out, through the gateway below (the owner,
+# 2026-11-25: "Internal TX3 shall have access to the Internet as RX1").
 
 [nodes.RX1]
 roles = "receiving"
@@ -95,6 +96,7 @@ roles = "sending"
 
 [nodes.TX3]
 roles = "sending"
+capabilities = ["online"]
 
 [nodes.OP1]
 roles = "operational, monitoring"
@@ -446,6 +448,15 @@ disk_gb = 32
 [environment.far_ends]
 senders = ["EXTTX1", "EXTTX2", "EXTTX3"]
 receivers = ["EXTRX1", "EXTRX2", "EXTRX3"]
+
+# What a run in containers runs every node and far end in, one container
+# each, Start-XmipTest -Container (ADR-0015 and ADR-0028, amendments
+# 2026-11-25): a Linux image, AlmaLinux's own as the plan's Linux machines
+# run AlmaLinux, which the container tool pulls where it has none. The
+# containers are Linux wherever they live, WSL containers on Windows and
+# Podman on Linux, so a machine's `os` below is its virtual machine's alone.
+[environment.container]
+image = "quay.io/almalinuxorg/10-minimal:latest"
 
 # The machines of the plan that run no node and no far end: the domain
 # controller, the file storage and the people's machines. Every other name

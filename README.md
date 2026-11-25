@@ -160,10 +160,10 @@ same file (`deploy/dsc`).
 
 The System Tests, `Core.System`, which test the internals, and the Systems
 Tests, `Core.Systems`, which test how nodes interact (the owner,
-2026-11-25), each run as local processes or on virtual machines, as
-`Start-XmipTest -Process` (what runs where no switch is given) or
-`-VirtualMachine` chooses; `-Container` is not built yet and is refused
-(ADR-0015 and ADR-0028, amendments 2026-11-25). As local
+2026-11-25), each run as local processes, on virtual machines or in
+containers, as `Start-XmipTest -Process` (what runs where no switch is
+given), `-VirtualMachine` or `-Container` chooses (ADR-0015 and ADR-0028,
+amendments 2026-11-25). As local
 processes every node is **simulated** — a process this run spawned — or
 started here. On virtual machines every node is **real** (`src/real.rs`;
 `XMIP_SYSTEM_TEST_MACHINES`): every node of the file is at the address of
@@ -176,7 +176,14 @@ asked with the operator certificate that deployment made
 `anchors.pem`), as that node of this cluster saying what it can do; it is
 then **real**, runs by the roles it declared, and is never spawned,
 configured or stopped. Anything else is REFUSED by name and nothing spawns;
-the switch never makes or starts a virtual machine. The roll follows each real node's publication
+the switch never makes or starts a virtual machine. In containers every
+node is real the same way, each in a Linux container `Start-XmipTest
+-Container` made for it, at that container's address on the cluster's
+network, where the far ends reach it; this computer reaches no container's
+own address, so `XMIP_SYSTEM_TEST_PUBLISHED` says where each listener the
+roll asks is published here, `name:port=address:port`, and the roll asks
+each node's operate listener and each far end's control port there
+(`environment::Machines::reached`). The roll follows each real node's publication
 through the runtime's one gatherer (`runtime::plane::gather`, over the
 roll's roster as the cluster's membership, `xcluster::Membership`), told as it advances and never asking
 again, and merges what was heard into the run's snapshot every round;
@@ -258,7 +265,10 @@ which the environment registers through the far end's own `--install` and
 the runtime's one registration of a service; the roll reaches it over Xmip's
 mutual TLS on port 7423 with the tester's operator certificate, its
 certificate checked for its name, and tells it the same lines as a local
-process is told. The nodes' Receive Locations listen over
+process is told. In containers each far end is its container's own
+process, `xmip-system-test-external --serve`, its port 7423 reached where
+it is published on this computer, and each Receive Location is pushed to at
+its node's container address. The nodes' Receive Locations listen over
 HTTP on their nodes, as `xmip-service --slice --bind --listen` binds them,
 and each round the sender whose turn it is pushes to each, so every sender
 reaches every node that receives; each Send Port puts over SFTP on the
@@ -797,7 +807,9 @@ and the run record says the nodes and the file), `-VirtualMachine` is
 `XMIP_SYSTEM_TEST_MACHINES`, each node's and far end's `name=address` as
 the deployed environment recorded them, and `XMIP_SYSTEM_TEST_CERTIFICATE`,
 the operator certificate that deployment made, which a real node is asked
-with, `-NodeCapability` is each node's `capabilities = [...]` in the run's
+with, `-Container` the same two of the containers the run made and
+`XMIP_SYSTEM_TEST_PUBLISHED`, each listener's `name:port=address:port`
+where it is published on this computer, `-NodeCapability` is each node's `capabilities = [...]` in the run's
 cluster file (its Node capabilities, `online` among them where it may assume
 the internet, ADR-0045; ADR-0056, amendment 2026-11-24), `-Duration` is
 `XMIP_SYSTEM_TEST_MAX_SECONDS`, `-TimeFactor` is `XMIP_SYSTEM_TEST_TIME_FACTOR`

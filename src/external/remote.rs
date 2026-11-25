@@ -1,15 +1,17 @@
-//! The far ends on virtual machines of their own, as the roll reaches them:
-//! each the service `xmip-system-test-external --serve` runs as on its
-//! machine (`serving.rs`), at the address the deployed environment recorded
-//! for it (`environment::machines`), as a node is reached at its own, its
-//! certificate checked for its name, and told over Xmip's mutual TLS with
-//! the tester's operator certificate (`crate::real::operator`). No name is
-//! resolved.
+//! The far ends on virtual machines or in containers of their own, as the
+//! roll reaches them: each the service `xmip-system-test-external --serve`
+//! runs as on its machine (`serving.rs`), at the address the deployed
+//! environment recorded for it, or where its control port is published in
+//! containers (`environment::machines`), as a node is reached at its own,
+//! its certificate checked for its name, and told over Xmip's mutual TLS
+//! with the tester's operator certificate (`crate::real::operator`). No name
+//! is resolved.
 //!
 //! The real nodes' Locations are bound as their environment bound them
 //! (`configure::placed::far_ends::bound`, which `xmip-service --slice
 //! --bind --listen` slices by): each Receive Location listens on its node,
-//! and each round the sender whose turn it is pushes to it, so any sender
+//! at its machine's own address, where the far ends reach it, and each
+//! round the sender whose turn it is pushes to it, so any sender
 //! reaches any node that receives; each Send Port puts on the receiver of
 //! its turn, a user of its own there whose password the roll mints and sets
 //! on the node that takes it (`crate::far_end`). A receiver tells what it
@@ -132,12 +134,14 @@ impl Externals {
                 .find(|node| node.name == placement.node)
                 .ok_or_else(|| format!("REFUSED: {} is no real node of the run", placement.node))?;
             let spot = match placement.placed {
+                // Where the far ends reach the node: its machine's own
+                // address, which in containers is not where this computer
+                // reaches its operate listener.
                 Placed::Receive => {
-                    let host = node
-                        .address
-                        .rsplit_once(':')
-                        .map_or(&*node.address, |(h, _)| h);
-                    Spot::Listening(binding.address.replace("0.0.0.0", host))
+                    let host = machines
+                        .address(&node.name)
+                        .ok_or_else(|| format!("REFUSED: {} has no machine", node.name))?;
+                    Spot::Listening(binding.address.replace("0.0.0.0", &host.to_string()))
                 }
                 Placed::Send => {
                     let at = far_end_of(send, named.receivers.len());
@@ -182,8 +186,9 @@ impl Externals {
 }
 
 /// The far end `name` reached on its machine in `machines`, at its control
-/// port, its certificate checked for its name, over Xmip's mutual TLS with
-/// `config`, told `said`, a line each, and waited for until it is ready.
+/// port or where that port is published, its certificate checked for its
+/// name, over Xmip's mutual TLS with `config`, told `said`, a line each, and
+/// waited for until it is ready.
 fn reached(
     (name, machines): (&str, &Machines),
     config: &Arc<tls::ClientConfig>,
@@ -191,9 +196,8 @@ fn reached(
     told: Option<Told<'_>>,
 ) -> Result<Running, String> {
     let address = machines
-        .address(name)
-        .map(|address| SocketAddr::new(address, CONTROL_PORT))
-        .ok_or_else(|| format!("REFUSED: the far end {name} has no virtual machine"))?;
+        .reached(name, CONTROL_PORT)
+        .ok_or_else(|| format!("REFUSED: the far end {name} has no machine"))?;
     told_at((name, name, address), config, said, told)
 }
 
