@@ -10,8 +10,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
+use std::thread::JoinHandle;
 
-use super::ANSWER;
 use super::program::{self, Arrival};
 use crate::carried::Arrived;
 /// One far end running: its name, its process on this computer or none
@@ -53,7 +53,7 @@ impl Running {
             )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -65,6 +65,7 @@ impl Running {
             .spawn()
             .map_err(|error| format!("REFUSED: the far end {name} did not start: {error}"))?;
         let output = child.stdout.take().ok_or("the far end's output")?;
+        let words = last_words(child.stderr.take().ok_or("the far end's error output")?);
         let input = child
             .stdin
             .take()
@@ -73,15 +74,16 @@ impl Running {
             arrived,
             into: None,
         };
-        Self::ready((name, Some(child)), input, output, told)
+        Self::ready((name, Some(Launched { child, words })), input, output, told)
     }
 
     /// The far end `name` told through `input` and heard on `output`: what
     /// it says handed on, each arrival `told` records counted, and its
-    /// [`program::READY`] waited for, as the first thing it says. Ended, its
-    /// process — `child`, where it is one of this computer's — is killed.
+    /// [`program::READY`] waited for, as the first thing it says. Refused,
+    /// its process — `launched`, where it is one of this computer's — is
+    /// ended.
     pub(super) fn ready(
-        (name, child): (&str, Option<Child>),
+        (name, launched): (&str, Option<Launched>),
         input: Option<Box<dyn Write + Send>>,
         output: impl Read + Send + 'static,
         told: Told<'_>,
@@ -110,7 +112,10 @@ impl Running {
                 }
             }
         });
-        let mut running = Self {
+        let (child, words) = launched.map_or((None, None), |launched| {
+            (Some(launched.child), Some(launched.words))
+        });
+        let running = Self {
             name: name.to_string(),
             input,
             child,
@@ -119,22 +124,61 @@ impl Running {
         };
         // Ready before it is used: a receiver is watching every Send Port's
         // folder it was given, or serving its Send Ports, so nothing
-        // delivered is missed.
-        match running.said.recv_timeout(ANSWER) {
+        // delivered is missed. Waited for until it says so, or says
+        // anything else, or ends, and never for a time: under load a
+        // process may take seconds to start, and the far end's audit says
+        // where its start went. Until 2026-11-25 one silent for five
+        // seconds was refused and killed before its audit could say why.
+        match running.said.recv() {
             Ok(line) if line == program::READY => Ok(running),
-            said => {
-                if let Some(child) = running.child.as_mut() {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                }
-                let what = said.unwrap_or_else(|_| "nothing".to_string());
-                Err(format!(
-                    "REFUSED: the far end {name} never said it is ready, said {what}; \
-                     its audit says why"
-                ))
-            }
+            said => Err(running.refused(said.ok(), words)),
         }
     }
+
+    /// Why the far end is refused, having said `said` where it says it is
+    /// ready, or ended without a word: its process, where it is one of this
+    /// computer's, ended, and how it exited and what it last said on its
+    /// error output named.
+    fn refused(mut self, said: Option<String>, words: Option<JoinHandle<String>>) -> String {
+        let what = said.map_or_else(
+            || "ended before it said it is ready".to_string(),
+            |line| format!("said '{line}' where it says it is ready"),
+        );
+        let exited = self.child.as_mut().and_then(|child| {
+            let _ = child.kill();
+            child.wait().ok()
+        });
+        let exited = exited.map_or_else(String::new, |status| format!(", {status}"));
+        let last = words
+            .and_then(|words| words.join().ok())
+            .filter(|last| !last.is_empty())
+            .map_or_else(String::new, |last| format!(", its last words: {last}"));
+        format!(
+            "REFUSED: the far end {} {what}{exited}{last}; its audit says where its start went",
+            self.name
+        )
+    }
+}
+
+/// A far end's process of this computer, and what it says last on its error
+/// output, kept by a thread of its own until it ends.
+pub(super) struct Launched {
+    child: Child,
+    words: JoinHandle<String>,
+}
+
+/// The last line `errors`, a far end's error output, says before it ends,
+/// read to its end on a thread of its own, so the far end is never kept
+/// waiting for a reader.
+fn last_words(errors: impl Read + Send + 'static) -> JoinHandle<String> {
+    std::thread::spawn(move || {
+        BufReader::new(errors)
+            .lines()
+            .map_while(Result::ok)
+            .filter(|line| !line.trim().is_empty())
+            .last()
+            .unwrap_or_default()
+    })
 }
 
 /// What a far end's arrivals are recorded in, and, for one on a machine of
@@ -142,4 +186,61 @@ impl Running {
 pub(super) struct Told<'a> {
     pub(super) arrived: Option<&'a Arrived>,
     pub(super) into: Option<PathBuf>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::pipe;
+    use std::time::Duration;
+
+    use super::*;
+
+    /// What a far end records nothing in.
+    const NOWHERE: Told<'static> = Told {
+        arrived: None,
+        into: None,
+    };
+
+    /// A far end slower to say it is ready than a sender is given to answer
+    /// is taken once it says so: the wait is for the event, never for a
+    /// time, so a loaded computer refuses no far end.
+    #[test]
+    fn a_far_end_slow_to_start_is_taken_once_it_says_it_is_ready() {
+        let (output, mut saying) = pipe().expect("a pipe");
+        let speaking = std::thread::spawn(move || {
+            std::thread::sleep(super::super::ANSWER + Duration::from_millis(100));
+            writeln!(saying, "{}", program::READY).expect("said");
+            saying
+        });
+
+        let running = Running::ready(("slow", None), None, output, NOWHERE).map(|one| one.name);
+
+        assert_eq!(running.as_deref(), Ok("slow"));
+        drop(speaking.join());
+    }
+
+    /// One that says anything else first, or ends without a word, is
+    /// refused at once, in words that say which.
+    #[test]
+    fn a_far_end_that_says_another_thing_or_ends_unready_is_refused_in_words() {
+        let (output, mut saying) = pipe().expect("a pipe");
+        writeln!(saying, "busy").expect("said");
+        let Err(other) = Running::ready(("busy", None), None, output, NOWHERE) else {
+            panic!("taken without saying it is ready");
+        };
+        assert!(
+            other.contains("busy said 'busy' where it says it is ready"),
+            "{other}"
+        );
+
+        let (output, saying) = pipe().expect("a pipe");
+        drop(saying);
+        let Err(ended) = Running::ready(("gone", None), None, output, NOWHERE) else {
+            panic!("taken without saying it is ready");
+        };
+        assert!(
+            ended.starts_with("REFUSED: the far end gone ended before it said it is ready;"),
+            "{ended}"
+        );
+    }
 }

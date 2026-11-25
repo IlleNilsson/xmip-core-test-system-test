@@ -11,12 +11,14 @@
 //! address the deployed environment recorded (ADR-0028, amendment
 //! 2026-11-25).
 //!
-//! **It audits** (ADR-0062) its start and its stop, with how many files it
-//! sent or received, and declares itself while it runs (ADR-0053), at
+//! **It audits** (ADR-0062) its start, with what declaring itself took, and
+//! its stop, with how many files it sent or received and how long its start
+//! was, and declares itself while it runs (ADR-0053), at
 //! `xmip:///<cluster>/external/<name>`. What it does is the library's
 //! `external/program.rs`; this file is its `main`.
 
 use std::process::ExitCode;
+use std::time::{Duration, Instant};
 
 use xaudit::program_audit::ProgramAudit;
 use xmip_core_test_system_test::external::command::{Does, Program};
@@ -48,6 +50,11 @@ fn main() -> ExitCode {
     // The name is the image's own, xmip-system-test-<cluster>-external-<name>
     // where the roll named one, so the declaration, the audit and the
     // process list agree (ADR-0053, amendment 2026-09-20).
+    // Where its start went is said from here: its start record says what
+    // declaring itself took, its stop record how long it was from here to
+    // its start on the disk, so a start the roll waited long for says
+    // whether the time was its own or before it ran (2026-11-25).
+    let began = Instant::now();
     let called = image::this_process("xmip-system-test-external");
     let audit = process_audit::program(&called);
     audit.watch_panics();
@@ -69,6 +76,7 @@ fn main() -> ExitCode {
     }
     let scope = format!("{}/external/{}", cluster_root(), started.name);
     audit.locate(&scope);
+    let declaring = Instant::now();
     let _declared = node::Declaration::new(called, &scope, node::Purpose::Test)
         .and_then(|declaration| declaration.with("does", started.does.word()))
         .and_then(|declaration| process_audit::declared(&declaration))
@@ -79,10 +87,16 @@ fn main() -> ExitCode {
             );
             process_audit::fail(&audit, "declare", &problem);
         });
+    let declared = millis(declaring.elapsed());
     process_audit::start(
         &audit,
-        &[("external", &started.name), ("does", started.does.word())],
+        &[
+            ("external", &started.name),
+            ("does", started.does.word()),
+            ("declared_ms", &declared),
+        ],
     );
+    let ready = millis(began.elapsed());
 
     let input = std::io::stdin().lock();
     let carried = match &started.does {
@@ -119,9 +133,15 @@ fn main() -> ExitCode {
         &[
             ("external", &started.name),
             (started.does.counted(), &carried.to_string()),
+            ("started_ms", &ready),
         ],
     );
     ExitCode::SUCCESS
+}
+
+/// `took` in milliseconds to the microsecond, as a record says it.
+fn millis(took: Duration) -> String {
+    format!("{:.3}", took.as_secs_f64() * 1000.0)
 }
 
 /// The far end `name` served on its machine, its certificate in `folder`:

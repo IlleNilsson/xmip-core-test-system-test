@@ -6,13 +6,16 @@
 //! delivers and telling of it, and every one ended with its input. The test
 //! plays the node, copying what was dropped to where it delivers it.
 
+use std::io::{BufRead, BufReader};
 use std::path::Path;
+use std::process::{Command, Stdio};
 use std::sync::PoisonError;
 use std::time::{Duration, Instant};
 
 use configure::placed::{Placed, Placement};
+use xaudit::audit_store;
 use xmip_core_test_system_test::carried::{Binding, Carried, Spot};
-use xmip_core_test_system_test::external::{Externals, named};
+use xmip_core_test_system_test::external::{Externals, named, program};
 use xmip_core_test_system_test::subscribing::CLUSTER;
 
 /// The far ends' program cargo built for this program.
@@ -125,4 +128,87 @@ fn each_far_end_is_a_process_a_sender_drops_in_turn_and_a_receiver_takes_and_tel
     }
     // Every far end ends with its input, none left running.
     drop(far);
+}
+
+/// A far end says where its start went: its start record what declaring
+/// itself took, its stop record how long it was from its first line to its
+/// start on the disk, each in milliseconds.
+#[test]
+fn a_far_end_says_in_its_audit_where_its_start_went() {
+    let _alone = super::alone();
+    let base = super::scratch("external-start");
+    let audit = base.join("audit");
+    let name = named(CLUSTER).expect("the cluster file's far ends").senders[0].clone();
+    let mut far = Command::new(external_binary())
+        .args(["--name", &name, "--sender"])
+        .env(audit_store::DIRECTORY_VARIABLE, &audit)
+        .env(runtime::declared::DIRECTORY_VARIABLE, base.join("process"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("started");
+    let mut said = String::new();
+    BufReader::new(far.stdout.take().expect("its output"))
+        .read_line(&mut said)
+        .expect("said");
+    assert_eq!(said.trim_end(), program::READY);
+    drop(far.stdin.take());
+    assert!(far.wait().expect("ended").success());
+
+    let mut records = Vec::new();
+    audit_store::each(&audit.join(audit_store::FILE_NAME), |entry| {
+        records.push((entry.action.clone(), entry.properties.clone()));
+    })
+    .expect("its audit");
+    let took = |action: &str, property: &str| -> f64 {
+        let (_, properties) = records
+            .iter()
+            .find(|(said, _)| said == action)
+            .unwrap_or_else(|| panic!("no {action} record in {records:?}"));
+        properties[property].parse().expect("milliseconds")
+    };
+    let (declared, started) = (took("start", "declared_ms"), took("stop", "started_ms"));
+    assert!(
+        declared > 0.0 && declared <= started,
+        "{declared} of {started}"
+    );
+}
+
+/// A far end that ends before it says it is ready is refused at once, the
+/// refusal naming how it exited and what it last said: a receiver whose
+/// Send Port's folder cannot be made.
+#[test]
+fn a_far_end_that_ends_unready_is_refused_naming_its_last_words() {
+    let _alone = super::alone();
+    let base = super::scratch("external-unready");
+    let cluster = configure::fixture::test_cluster();
+    let blocker = base.join("a-file");
+    std::fs::write(&blocker, b"not a folder").expect("written");
+    let bindings = [Binding {
+        placement: Placement {
+            placed: Placed::Send,
+            application: "Order to cash".to_string(),
+            name: "Sales orders to ERP".to_string(),
+            node: cluster.node(0).name.clone(),
+        },
+        spot: Spot::Folder(blocker.join("out")),
+    }];
+
+    let Err(refused) = Externals::start(
+        external_binary(),
+        (&cluster.name, &base),
+        &bindings,
+        &Carried::arrivals(),
+    ) else {
+        panic!("a receiver that cannot watch its Send Port's folder was taken");
+    };
+
+    let receiver = &named(CLUSTER)
+        .expect("the cluster file's far ends")
+        .receivers[0];
+    let ended = format!("REFUSED: the far end {receiver} ended before it said it is ready, ");
+    assert!(refused.starts_with(&ended), "{refused}");
+    let words = format!("its last words: external {receiver}: ");
+    assert!(refused.contains(&words), "{refused}");
 }

@@ -43,8 +43,9 @@ use crate::subscribing::CLUSTER;
 use program::{Answer, Order};
 use running::{Running, Told};
 
-/// How long a far end may take to say it is ready, and a sender to say it
-/// dropped a file: a bound on the test, never on Xmip.
+/// How long a sender may take to say it dropped a file: a bound on the
+/// test, never on Xmip. A far end's readiness has no bound of time: it is
+/// waited for until it says so or ends (`running.rs`).
 const ANSWER: Duration = Duration::from_secs(5);
 
 /// How long a far end may take to end once its input does.
