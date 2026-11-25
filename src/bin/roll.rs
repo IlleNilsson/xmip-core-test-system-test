@@ -65,30 +65,33 @@
 //! role. A node serving no stage runs the shared-directory tests whole, as
 //! before. A node's name decides none of this.
 //!
-//! **The Systems Tests' nodes are machines** (ADR-0028, amendment
-//! 2026-11-23): where `XMIP_SYSTEM_TEST_MACHINES` is `true`, every node of
-//! the run and the cluster's name are resolved, and each must answer as that
+//! **As local processes or on virtual machines** (ADR-0028, amendment
+//! 2026-11-25), the System Tests and the Systems Tests alike, as
+//! `Start-XmipTest -Process` or `-VirtualMachine` chose:
+//! on virtual machines `XMIP_SYSTEM_TEST_MACHINES` names each node's and far
+//! end's machine, `name=address`, from what `Deploy-XmipEnvironment`
+//! recorded, and every node of the run must answer at its machine as that
 //! node of this cluster over its operate listener, asked with the operator
 //! certificate `XMIP_SYSTEM_TEST_CERTIFICATE` names — never spawned,
 //! configured or stopped, its publication followed by the runtime's one
-//! gatherer (`runtime::plane::gather`) and merged each round; one that does
-//! not resolve or does not answer is REFUSED by name, and none is spawned in
-//! its place. The System Tests resolve no name. `[run] real` and the first
-//! lines say which nodes are real (`real.rs`).
+//! gatherer (`runtime::plane::gather`) and merged each round; one with no
+//! machine or that does not answer is REFUSED by name, and none is spawned
+//! in its place. No name is resolved. `[run] real` and the first lines say
+//! which nodes are real (`real.rs`), and `[run] runs_as` which the run is.
 //!
-//! **Every other node is started as `xmip-service`** where the run was
-//! given one, `XMIP_SYSTEM_TEST_SERVICE`, and one of those nodes declares the
-//! Storage role (ADR-0028, amendment 2026-10-22): the run gives each its
-//! slice, its certificate, its addresses on loopback and its bindings
-//! (`served.rs`), reads it as a real node, and drives it through its Receive
-//! Locations each round (`carried.rs`); simulated where not.
+//! **As local processes, a node is started as `xmip-service`** where the
+//! run was given one, `XMIP_SYSTEM_TEST_SERVICE`, and one of those nodes
+//! declares the Storage role (ADR-0028, amendment 2026-10-22): the run gives
+//! each its slice, its certificate, its addresses on loopback and its
+//! bindings (`served.rs`), reads it as a real node, and drives it through
+//! its Receive Locations each round (`carried.rs`); simulated where not.
 //!
-//! **A run with real nodes drives them through the Parties' far end**
-//! (ADR-0028, amendment 2026-10-22): the rig serves SFTP on this computer
-//! (`far_end.rs`), each Location the real nodes' environment placed on them
-//! a user of its own there (`xmip-service --slice --bind`), drops into the
-//! Receive Locations' and is told of what the Send Ports put
-//! (`carried.rs`); no node is started as `xmip-service` beside them.
+//! **Real nodes are driven through the far ends outside the cluster**, the
+//! System Tests' cluster file's `[environment.far_ends]` (`external.rs`):
+//! as local processes each a process of its own here, on virtual machines
+//! each on its own, at the address `XMIP_SYSTEM_TEST_MACHINES` gives it; they
+//! drop into the Receive Locations and tell what the Send Ports put
+//! (`carried.rs`).
 //!
 //! **It audits** (ADR-0062): `start` once the roll knows what it is, `stop`
 //! when its rounds are done, every refusal and failed write as a failure, and
@@ -147,7 +150,7 @@ fn main() {
         simulated,
         served,
         mut carried,
-        far_end,
+        runs_as,
     } = or_refuse(&audit, nodes(&cluster, &base));
     let relayed = or_refuse(&audit, relayed(&chosen, &simulated));
     // Every node read, none simulated: the configured flows with real
@@ -157,11 +160,11 @@ fn main() {
         reading(&chosen, (&simulated, &real_names), carried.as_mut(), stress),
     );
     let tests = (chosen.as_slice(), served_only);
-    let run = started(&cluster, tests, &roster, stress, &real_names);
+    let run = started(&cluster, tests, &roster, stress, (&real_names, runs_as));
 
     let spread = Parties::configured().over_every_transport();
     let first = announced(&cluster, stress, &roster, &spread);
-    announce(first, &real_nodes, far_end.as_ref());
+    announce(first, &real_nodes);
 
     // Every scenario this process runs itself (`in_process.rs`): none where
     // every node is read.

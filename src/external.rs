@@ -2,12 +2,12 @@
 //! documents into the Receive Locations and the receivers that take what the
 //! Send Ports deliver, each a process of its own (the owner's node plan,
 //! 2026-11-22: *the [System Tests'] far ends, processes of their own*; ADR-0028
-//! clause 2 and amendment 2026-11-22). They are named in
-//! `configuration/external.xmip`, never in code, and each runs the program
-//! `xmip-system-test-external`: on one computer from an image of its own,
-//! `xmip-system-test-<cluster>-external-<name>` (ADR-0053), told through its
-//! input; on a machine of its own as the service it serves as there
-//! ([`serving`]), told over Xmip's mutual TLS ([`remote`]).
+//! clause 2 and amendment 2026-11-22). They are named in the System Tests'
+//! cluster file, `[environment.far_ends]`, never in code, and each runs the
+//! program `xmip-system-test-external`: as local processes from an image of
+//! its own, `xmip-system-test-<cluster>-external-<name>` (ADR-0053), told
+//! through its input; on a virtual machine of its own as the service it
+//! serves as there ([`serving`]), told over Xmip's mutual TLS ([`remote`]).
 //!
 //! **Who reaches what.** Each round, each Receive Location's document goes
 //! through the sender whose turn it is, one further every round
@@ -39,11 +39,9 @@ use configure::placed::Placed;
 use configure::placed::far_ends::far_end_of;
 
 use crate::carried::{Arrived, Binding, Spot};
+use crate::subscribing::CLUSTER;
 use program::{Answer, Order};
 use running::{Running, Told};
-
-/// The far ends' file, as this repository ships it beside the cluster's.
-pub const FILE: &str = include_str!("../configuration/external.xmip");
 
 /// How long a far end may take to say it is ready, and a sender to say it
 /// dropped a file: a bound on the test, never on Xmip.
@@ -52,26 +50,34 @@ const ANSWER: Duration = Duration::from_secs(5);
 /// How long a far end may take to end once its input does.
 const STOPPING: Duration = Duration::from_secs(5);
 
-/// The far ends a file names, each by its name.
+/// Where a cluster file names its far ends.
+const FAR_ENDS: &str = "cluster.xmip's [environment.far_ends]";
+
+/// The far ends a cluster file names, each by its name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Named {
     pub senders: Vec<String>,
     pub receivers: Vec<String>,
 }
 
-/// The far ends `text` names: its `senders` and its `receivers`.
+/// The far ends the cluster file `text` names in `[environment.far_ends]`:
+/// its `senders` and its `receivers`. The System Tests' is
+/// `crate::subscribing::CLUSTER`.
 ///
 /// # Errors
 ///
 /// REFUSED, in words, where the file does not read, names no sender or no
 /// receiver, or names one no process can be called or one twice.
 pub fn named(text: &str) -> Result<Named, String> {
-    let table: toml::Table = text
+    let file: toml::Table = text
         .parse()
-        .map_err(|error| format!("REFUSED: external.xmip: {error}"))?;
+        .map_err(|error| format!("REFUSED: {FAR_ENDS}: {error}"))?;
+    let table = file
+        .get("environment")
+        .and_then(|environment| environment.get("far_ends"));
     let list = |key: &str| -> Result<Vec<String>, String> {
         let names: Vec<String> = table
-            .get(key)
+            .and_then(|table| table.get(key))
             .and_then(toml::Value::as_array)
             .map_or_default(|names| {
                 names
@@ -80,7 +86,7 @@ pub fn named(text: &str) -> Result<Named, String> {
                     .collect()
             });
         if names.is_empty() {
-            return Err(format!("REFUSED: external.xmip names no {key}"));
+            return Err(format!("REFUSED: {FAR_ENDS} names no {key}"));
         }
         Ok(names)
     };
@@ -92,12 +98,12 @@ pub fn named(text: &str) -> Result<Named, String> {
     for name in named.senders.iter().chain(&named.receivers) {
         if !crate::image::shaped(name) {
             return Err(format!(
-                "REFUSED: external.xmip names {name}: a far end's name is letters, digits \
-                 and hyphens starting with a letter, since its process is named for it"
+                "REFUSED: {FAR_ENDS} names {name}: a far end's name is letters, digits and \
+                 hyphens starting with a letter, since its process is named for it"
             ));
         }
         if seen.contains(&name) {
-            return Err(format!("REFUSED: external.xmip names {name} twice"));
+            return Err(format!("REFUSED: {FAR_ENDS} names {name} twice"));
         }
         seen.push(name);
     }
@@ -125,10 +131,10 @@ pub struct Externals {
 }
 
 impl Externals {
-    /// The far ends the shipped file names, each started as `program` for
-    /// the run of `cluster` over `bindings`: every sender, and every
-    /// receiver watching the Send Ports' folders it is given, taking into a
-    /// folder of its own beneath `area` and telling `arrived`. With them,
+    /// The far ends the System Tests' cluster file names, each started as
+    /// `program` for the run of `cluster` over `bindings`: every sender, and
+    /// every receiver watching the Send Ports' folders it is given, taking
+    /// into a folder of its own beneath `area` and telling `arrived`. With them,
     /// each Send Port's binding as Carried judges it: at its receiver's
     /// folder.
     ///
@@ -142,7 +148,7 @@ impl Externals {
         bindings: &[Binding],
         arrived: &Arrived,
     ) -> Result<(Self, Vec<Binding>), String> {
-        let named = named(FILE)?;
+        let named = named(CLUSTER)?;
         let mut started = Self {
             senders: Vec::new(),
             receivers: Vec::new(),
@@ -298,23 +304,33 @@ impl Drop for Externals {
 mod tests {
     use super::*;
 
+    /// The far ends are the System Tests' cluster file's, in its
+    /// `[environment.far_ends]`: no file of their own.
     #[test]
-    fn the_shipped_file_names_three_senders_and_three_receivers() {
-        let named = named(FILE).expect("the shipped far ends");
+    fn the_cluster_file_names_three_senders_and_three_receivers() {
+        let named = named(CLUSTER).expect("the cluster file's far ends");
         assert_eq!((named.senders.len(), named.receivers.len()), (3, 3));
     }
 
     #[test]
     fn a_file_naming_none_twice_or_what_no_process_can_be_called_is_refused() {
-        let refused = named("senders = []\nreceivers = [\"a\"]\n").expect_err("no sender");
-        assert!(refused.contains("names no senders"), "{refused}");
-        let twice = named("senders = [\"a\"]\nreceivers = [\"a\"]\n").expect_err("twice");
+        let file = |senders: &str, receivers: &str| {
+            format!("[environment.far_ends]\nsenders = [{senders}]\nreceivers = [{receivers}]\n")
+        };
+        let refused = named(&file("", "\"a\"")).expect_err("no sender");
+        assert!(
+            refused.contains("cluster.xmip's [environment.far_ends] names no senders"),
+            "{refused}"
+        );
+        let twice = named(&file("\"a\"", "\"a\"")).expect_err("twice");
         assert!(twice.contains("names a twice"), "{twice}");
-        let shapeless = named("senders = [\"a b\"]\nreceivers = [\"c\"]\n").expect_err("shape");
+        let shapeless = named(&file("\"a b\"", "\"c\"")).expect_err("shape");
         assert!(
             shapeless.contains("letters, digits and hyphens"),
             "{shapeless}"
         );
+        let none = named("[nodes]\n").expect_err("a file naming no far end");
+        assert!(none.contains("names no senders"), "{none}");
     }
 
     /// Every sender reaches every Receive Location, one further each round,

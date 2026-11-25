@@ -1,19 +1,21 @@
-# The System Tests' cluster configuration: one file for a run on one computer
-# and for the same cluster on machines of its own (the owner, 2026-10-21:
-# *one TOML file that can be run for tests regardless of node faking or
-# actual nodes*; ADR-0028, amendment 2026-10-21). It says what the cluster
-# is — its nodes and their roles, where each reaches Xmip Storage and is
-# operated from, its Parties and its Xmip Applications — and nothing of
-# where it runs: no address of a machine, no absolute path, no cluster
-# name. Those are the environment's. On one computer the run gives them:
-# Start-XmipTest's -Cluster names the cluster, and the run gives each node it
-# starts its addresses on loopback, its certificate from the run's
-# authority and the bindings, whose addresses are the run's own
-# directories, and, loopback losing no SYN, no connect's SYN sent again
-# (`[tuning] connect_retransmissions = 0`; src/served.rs). On machines of
-# their own the environment template gives them (deploy/dsc): `xmip-service
-# --install --cluster` names the cluster, and each machine is given its
-# node's slice of this file.
+# The System Tests' cluster configuration: one file for a run as local
+# processes on one computer and for the same cluster on virtual machines of
+# its own (the owner, 2026-10-21: *one TOML file that can be run for tests
+# regardless of node faking or actual nodes*; 2026-11-25: *I still don't get
+# why there is a need for two files?*; ADR-0028, amendment 2026-11-25). It
+# says what the cluster is — its nodes and their roles, where each reaches
+# Xmip Storage and is operated from, its Parties and its Xmip Applications —
+# and, in [environment] at its end, the far ends it trades with and the
+# virtual machines it runs on, which slicing gives no node. It names no
+# address of a machine, no absolute path and no cluster name. As local
+# processes the run gives those: Start-XmipTest's -Cluster names the
+# cluster, and the run gives each node it starts its addresses on loopback,
+# its certificate from the run's authority and the bindings, whose
+# addresses are the run's own directories, and, loopback losing no SYN, no
+# connect's SYN sent again (`[tuning] connect_retransmissions = 0`;
+# src/served.rs). On virtual machines Deploy-XmipEnvironment gives them
+# from this file (deploy/dsc): its -Cluster names the cluster, and each
+# machine is given its node's slice of this file.
 #
 # A node finds the others by name: `DS1:7443` is the node DS1, resolved as
 # every name is, never "this machine". A path is relative to the node's
@@ -29,8 +31,8 @@
 # names it (ADR-0009, amendment 2026-11-07). On one computer the run lists
 # the tester among every node's operators: the account it runs as, and the
 # subject of every operator certificate the System Tests' authority signed
-# (src/served/given.rs); on machines of their own the environment lists its
-# operators' certificate subjects or accounts in `operators`.
+# (src/served/given.rs); on virtual machines Deploy-XmipEnvironment lists the
+# subject of the operator certificate it made, and each its -Operator names.
 [operate]
 listen = "0.0.0.0:7401"
 certificate = "tls/node.pem"
@@ -61,10 +63,12 @@ anchors = "tls/anchors.pem"
 # declares its Node capabilities, `capabilities`: what its environment gives
 # it, a firewall opening, software installed, a system it reaches, in words
 # Xmip only matches against what work requires (ADR-0056, amendment
-# 2026-11-24).
+# 2026-11-24). RX1 has the internet, `online`: on a virtual machine it alone
+# is given the way out, through the gateway below.
 
 [nodes.RX1]
 roles = "receiving"
+capabilities = ["online"]
 
 [nodes.RX2]
 roles = "receiving"
@@ -401,3 +405,188 @@ filter = "\"content:edi:UNH/2/1\" = 'PRICAT' and \"content:edi:UNB/3/1\" = 'PART
 id = "Payments"
 destination = { send-port = "Payments to Party-E" }
 filter = "\"content:edi:UNH/2/1\" = 'PAYMUL' and \"content:edi:UNB/3/1\" = 'PARTY-E'"
+
+# Where the cluster runs, the environment's: never given to a node by slicing
+# (ADR-0031, amendment 2026-11-25), and of it a run as local processes reads
+# the far ends alone. Deploy-XmipEnvironment -Path <this file> -Cluster
+# <name> makes one virtual machine for each node, each far end and each
+# machine of its own below, XMIP-<name>, on the network Xmip-<cluster>; and
+# Start-XmipTest -VirtualMachine runs on what it made (ADR-0015 and
+# ADR-0028, amendments 2026-11-25). No network is named here: Xmip picks a
+# free private /24 on the host and keeps it, the host on the first address,
+# then the machines of their own, the far ends and the nodes, in this
+# file's order. The domain controller answers the names and is the way out
+# for the nodes that declare `online`, NAT out of a second adapter on the
+# host's uplink (ADR-0015, amendment 2026-11-24: "A good choice would be the
+# DC"). Windows Server is Server Core (the owner, 2026-11-21).
+[environment]
+domain = "xmip.test"
+domain_controller = "DC01"
+gateway = "DC01"
+
+# Every machine's own where it says none: what it starts and installs with,
+# and the least and the most Hyper-V gives it as it uses it.
+[environment.machine]
+os = "AlmaLinux10"
+cpu = 2
+memory_gb = 2
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 3 }
+disk_gb = 32
+
+# The far ends outside the cluster, as the owner's node plan of 2026-11-22
+# lays them out: three that send to it and three it sends to (ADR-0028,
+# amendment 2026-11-22). They are the System Tests', never Xmip's: as local
+# processes each is the process xmip-system-test-<cluster>-external-<name>,
+# on a virtual machine the service xmip-<name>. A sender drops into Receive
+# Locations, each round the next sender in turn into each, so every sender
+# reaches every node that receives; a receiver takes what Send Ports
+# deliver, each Send Port delivering to one, round robin in the order they
+# are placed in. Rename them here: nothing in the System Tests' code names
+# one.
+[environment.far_ends]
+senders = ["EXTTX1", "EXTTX2", "EXTTX3"]
+receivers = ["EXTRX1", "EXTRX2", "EXTRX3"]
+
+# The machines of the plan that run no node and no far end: the domain
+# controller, the file storage and the people's machines. Every other name
+# here is a node's or a far end's machine, where it differs from the
+# default; the plan runs half of each on Windows Server. A machine of its
+# own says what it is for, `purpose`, in its description, where it is not
+# the domain controller or the gateway, which say so themselves.
+[environment.machines.DC01]
+os = "WindowsServer2025"
+dynamic_memory = { minimum_gb = 1, maximum_gb = 4 }
+disk_gb = 64
+
+# Optional: brings software and packages into the premises.
+[environment.machines.FS01]
+purpose = "file storage"
+os = "WindowsServer2025"
+memory_gb = 1
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 2 }
+disk_gb = 64
+
+[environment.machines.DEV01]
+purpose = "developer machine"
+os = "Windows11"
+memory_gb = 4
+dynamic_memory = { minimum_gb = 2, maximum_gb = 4 }
+disk_gb = 128
+
+[environment.machines.DEV02]
+purpose = "developer machine"
+os = "AlmaLinux10Desktop"
+dynamic_memory = { minimum_gb = 1, maximum_gb = 4 }
+disk_gb = 64
+
+# The operator's machine runs OP1 (the coordinator, 2026-11-25).
+[environment.machines.OP1]
+os = "Windows11"
+memory_gb = 4
+dynamic_memory = { minimum_gb = 2, maximum_gb = 4 }
+disk_gb = 128
+
+[environment.machines.DS1]
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 4 }
+
+[environment.machines.DS2]
+os = "WindowsServer2025"
+memory_gb = 1
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 4 }
+disk_gb = 64
+
+[environment.machines.RX2]
+os = "WindowsServer2025"
+memory_gb = 1
+disk_gb = 64
+
+[environment.machines.EX1]
+os = "WindowsServer2025"
+memory_gb = 1
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 4 }
+disk_gb = 64
+
+[environment.machines.EX2]
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 4 }
+
+[environment.machines.TX1]
+os = "WindowsServer2025"
+memory_gb = 1
+disk_gb = 64
+
+[environment.machines.TX3]
+os = "WindowsServer2025"
+memory_gb = 1
+disk_gb = 64
+
+[environment.machines.EXTTX1]
+cpu = 1
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 2 }
+
+[environment.machines.EXTTX2]
+os = "WindowsServer2025"
+cpu = 1
+memory_gb = 1
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 2 }
+disk_gb = 64
+
+[environment.machines.EXTTX3]
+cpu = 1
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 2 }
+
+[environment.machines.EXTRX1]
+os = "WindowsServer2025"
+cpu = 1
+memory_gb = 1
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 2 }
+disk_gb = 64
+
+[environment.machines.EXTRX2]
+cpu = 1
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 2 }
+
+[environment.machines.EXTRX3]
+os = "WindowsServer2025"
+cpu = 1
+memory_gb = 1
+dynamic_memory = { minimum_gb = 0.5, maximum_gb = 2 }
+disk_gb = 64
+
+# The installation images, by operating system, each found on the host by
+# its SHA-256 under Deploy-XmipEnvironment's -ImageFolder: the publishers'
+# ISOs, never a path here. Server Core: a node needs no Desktop Experience
+# (the owner, 2026-11-21). A TPM where an image asks for one, as Windows
+# 11's Setup does. `name` is the system in words, which each machine's
+# description says beside its role.
+[environment.images.WindowsServer2025]
+name = "Windows Server 2025 Server Core"
+sha256 = "d0ef4502e350e3c6c53c15b1b3020d38a5ded011bf04998e950720ac8579b23d"
+family = "Windows"
+edition = "Windows Server 2025 SERVERDATACENTERCORE"
+secureBootTemplate = "MicrosoftWindows"
+tpm = false
+
+[environment.images.Windows11]
+name = "Windows 11 Enterprise"
+sha256 ="bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38"
+family = "Windows"
+edition = "Windows 11 Enterprise Evaluation"
+secureBootTemplate = "MicrosoftWindows"
+tpm = true
+
+[environment.images.AlmaLinux10]
+name = "AlmaLinux 10"
+sha256 ="90244ac532f67c978831a381b420da8bda363729e1f4cf8fb8991daca70ee287"
+family = "Linux"
+secureBootTemplate = "MicrosoftUEFICertificateAuthority"
+tpm = false
+
+# The same DVD with a desktop, for the people's machines alone: the kickstart
+# installs the environment group named here and starts the graphical target.
+[environment.images.AlmaLinux10Desktop]
+name = "AlmaLinux 10 with a desktop"
+sha256 ="90244ac532f67c978831a381b420da8bda363729e1f4cf8fb8991daca70ee287"
+family = "Linux"
+environment = "workstation-product-environment"
+secureBootTemplate = "MicrosoftUEFICertificateAuthority"
+tpm = false

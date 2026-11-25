@@ -58,7 +58,7 @@ use runtime::directory_watch::DirectoryWatch;
 use crate::documents::{Document, Documents};
 use crate::external::Externals;
 use spot::seen;
-pub use spot::{Arrived, Binding, Spot, delivery, told};
+pub use spot::{Arrived, Binding, Spot, delivery};
 
 /// How long a file may take before it is overdue: a bound on the test,
 /// never on Xmip.

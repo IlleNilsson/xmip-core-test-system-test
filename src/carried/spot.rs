@@ -1,6 +1,7 @@
 //! Where Carried drops and reads, and what arrived there: a folder of the
-//! run's on this computer, or a user's directory on the Parties' far end;
-//! each arrival recorded once, by the Send Port whose spot it reached. How a
+//! run's on this computer, or the address a Receive Location listens at on
+//! its node; each arrival recorded once, by the Send Port whose spot it
+//! reached. How a
 //! file is dropped into a folder and what a folder holds whole are said
 //! here once, for the rig and the far ends outside the cluster
 //! (`crate::external`).
@@ -11,7 +12,6 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Instant;
 
 use configure::placed::Placement;
-use transport_sftp::directory::{Shared, Told};
 
 /// Each file arrived, by name: the Send Port whose spot it reached and when
 /// it was first seen whole there.
@@ -22,10 +22,8 @@ pub type Arrived = Arc<Mutex<BTreeMap<String, (String, Instant)>>>;
 pub enum Spot {
     /// A folder on this computer.
     Folder(PathBuf),
-    /// A user's directory on the Parties' far end.
-    FarEnd(Shared),
     /// The address a Receive Location listens at on its node, which the
-    /// far ends on machines of their own push to.
+    /// far ends on virtual machines of their own push to.
     Listening(String),
 }
 
@@ -94,20 +92,6 @@ pub(crate) fn put(folder: &Path, name: &str, bytes: &[u8]) -> std::io::Result<()
     std::fs::rename(beside.join(name), folder.join(name))
 }
 
-/// What a far end tells of a file a Send Location of the Send Port `port`
-/// finished writing: its arrival there, now.
-#[must_use]
-pub fn told(arrived: &Arrived, port: &str) -> Told {
-    let (arrived, port) = (Arc::clone(arrived), port.to_string());
-    Arc::new(move |name: &str| {
-        arrived
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .entry(name.to_string())
-            .or_insert_with(|| (port.clone(), Instant::now()));
-    })
-}
-
 /// The bytes of the file `name` at `spot`, where it is there, taken off it
 /// as the Party it was delivered to takes it: what a spot holds never grows
 /// with the run's age.
@@ -119,11 +103,6 @@ pub(super) fn taken(spot: &Spot, name: &str) -> Option<Vec<u8>> {
             let _ = std::fs::remove_file(&path);
             bytes
         }
-        Spot::FarEnd(directory) => directory
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .files
-            .remove(name),
         // A Send Port never listens: nothing arrives there to take.
         Spot::Listening(_) => None,
     }

@@ -13,8 +13,8 @@
 //!   send — answering each as on one computer.
 //! - **A receiver** is given a user and its password for each Send Port it
 //!   takes from, serves them over SFTP on the far end's port with Xmip's own
-//!   server (`crate::far_end::serving`, the one the far end on one computer
-//!   serves by), says [`program::READY`], and tells each file a Send Port
+//!   server (`crate::far_end::serving`), says [`program::READY`], and tells
+//!   each file a Send Port
 //!   finished putting as an [`program::Arrival`] with its bytes, taken off
 //!   its directory, as a Party takes what it is delivered.
 //!

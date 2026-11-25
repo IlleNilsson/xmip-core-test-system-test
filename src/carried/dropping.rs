@@ -4,7 +4,6 @@
 //! or dropped by the rig itself, then recorded with the Send Port its route
 //! names and said as a recent item. Split from `carried.rs` on 2026-11-22.
 
-use std::sync::PoisonError;
 use std::time::Instant;
 
 use observe::{Item, ItemKind};
@@ -48,14 +47,6 @@ impl Carried {
             )),
             (Spot::Folder(folder), None) => {
                 spot::put(folder, &name, &bytes).map_err(|error| error.to_string())
-            }
-            (Spot::FarEnd(directory), _) => {
-                directory
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .files
-                    .insert(name.clone(), bytes.clone());
-                Ok(())
             }
         };
         written.map_err(into)?;

@@ -1,6 +1,7 @@
 //! The far ends outside the cluster, each a process of its own, as a run of
 //! nodes started as `xmip-service` starts them (ADR-0028, amendment
-//! 2026-11-22): every far end the shipped file names started, a sender's
+//! 2026-11-22): every far end the System Tests' cluster file names in
+//! `[environment.far_ends]` started, a sender's
 //! turn moving one further each round, a receiver taking what a Send Port
 //! delivers and telling of it, and every one ended with its input. The test
 //! plays the node, copying what was dropped to where it delivers it.
@@ -11,7 +12,8 @@ use std::time::{Duration, Instant};
 
 use configure::placed::{Placed, Placement};
 use xmip_core_test_system_test::carried::{Binding, Carried, Spot};
-use xmip_core_test_system_test::external::{Externals, FILE, named};
+use xmip_core_test_system_test::external::{Externals, named};
+use xmip_core_test_system_test::subscribing::CLUSTER;
 
 /// The far ends' program cargo built for this program.
 fn external_binary() -> &'static Path {
@@ -62,7 +64,7 @@ fn each_far_end_is_a_process_a_sender_drops_in_turn_and_a_receiver_takes_and_tel
 
     // Each round the next sender drops into the Location, so as many rounds
     // as there are senders reach it from every one.
-    let shipped = named(FILE).expect("the shipped far ends");
+    let shipped = named(CLUSTER).expect("the cluster file's far ends");
     let document = b"UNA:+.? 'UNB+UNOC:3+PARTY-A:ZZZ+SYSTEM-TEST:ZZZ'";
     let mut senders = Vec::new();
     for round in 0..shipped.senders.len() {

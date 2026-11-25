@@ -8,18 +8,17 @@ use configure::placed::Placed;
 use crate::Roster;
 use crate::carried::{Binding, Carried};
 use crate::cluster::external_binary;
-use crate::environment;
+use crate::environment::{self, Machines};
 use crate::external::{Externals, remote};
-use crate::far_end::FarEnd;
 use crate::real::{self, RealNode};
 use crate::served::{self, Served};
 
-/// The run's nodes, sorted: the real ones — on machines, every node of the
-/// run, each having answered; on one computer, every node started as
-/// `xmip-service` where the run was given one, driven through its Receive
-/// Locations — their names, the
-/// roster, and the simulated nodes alone, which are all the cluster process
-/// spawns.
+/// The run's nodes, sorted: the real ones — on virtual machines, every node
+/// of the run, each having answered; as local processes, every node started
+/// as `xmip-service` where the run was given one, driven through its
+/// Receive Locations — their names, the roster, and the simulated nodes
+/// alone, which are all the cluster process spawns; and what the run runs
+/// as, `environment::PROCESS` or `environment::VIRTUAL_MACHINE`.
 pub struct Nodes {
     pub real: Vec<RealNode>,
     pub names: Vec<String>,
@@ -27,8 +26,7 @@ pub struct Nodes {
     pub simulated: Roster,
     pub served: Option<Served>,
     pub carried: Option<Carried>,
-    /// What the real nodes fetch from and put on, kept served for the run.
-    pub far_end: Option<FarEnd>,
+    pub runs_as: &'static str,
 }
 
 /// The nodes of the run of `cluster` beneath `base`, as [`Nodes`] sorts
@@ -36,8 +34,8 @@ pub struct Nodes {
 ///
 /// # Errors
 ///
-/// REFUSED, as [`real::sorted`], [`served::stores`] and [`Served::start`]
-/// say.
+/// REFUSED, as [`real::sorted`], [`remote::on_machines`], [`served::stores`]
+/// and [`Served::start`] say.
 pub fn nodes(cluster: &str, base: &Path) -> Result<Nodes, String> {
     let real::Sorted {
         mut real,
@@ -45,48 +43,19 @@ pub fn nodes(cluster: &str, base: &Path) -> Result<Nodes, String> {
         roster,
         simulated,
     } = environment::roster().and_then(|all| real::sorted(cluster, all))?;
-    // Nodes on machines of their own: driven through the Parties' far end
-    // their environment bound them to, and none started here, which could
-    // reach no Storage node of theirs (ADR-0028, amendment 2026-10-22) —
-    // the far ends on machines of their own where they run there.
-    if !real.is_empty() {
-        let arrived = Carried::arrivals();
-        if remote::on_machines()? {
-            let folder = environment::certificate().ok_or(
-                "REFUSED: the far ends run on machines of their own, and the run holds no \
-                 operator certificate to reach them with; name it with -Certificate",
-            )?;
-            let identity = real::operator(&folder)?;
-            let (far, bindings) = Externals::connect(&identity, &real, base, &arrived)?;
-            let judged: Vec<Binding> = bindings
-                .iter()
-                .filter(|one| one.placement.placed == Placed::Send)
-                .cloned()
-                .collect();
-            let carried = Carried::through(&bindings, arrived, (far, judged))?;
-            return Ok(Nodes {
-                real,
-                names,
-                roster,
-                simulated,
-                served: None,
-                carried: Some(carried),
-                far_end: None,
-            });
-        }
-        let far = FarEnd::serve(&real, &arrived)?;
-        let carried = far
-            .as_ref()
-            .map(|far| Carried::new(&far.bindings, arrived))
-            .transpose()?;
+    // Nodes on virtual machines of their own: driven through the far ends
+    // on theirs, and none started here, which could reach no Storage node
+    // of theirs (ADR-0028, amendments 2026-10-22 and 2026-11-25).
+    if let Some(machines) = remote::on_machines(cluster)? {
+        let carried = on_machines(&real, &machines, base)?;
         return Ok(Nodes {
             real,
             names,
             roster,
             simulated,
             served: None,
-            carried,
-            far_end: far,
+            carried: Some(carried),
+            runs_as: environment::VIRTUAL_MACHINE,
         });
     }
     let (served, started, simulated) = serve(cluster, &roster, simulated, base)?;
@@ -110,8 +79,33 @@ pub fn nodes(cluster: &str, base: &Path) -> Result<Nodes, String> {
         simulated,
         served,
         carried,
-        far_end: None,
+        runs_as: environment::PROCESS,
     })
+}
+
+/// What drives the nodes `real` on the virtual machines `machines` beneath
+/// `base`: the far ends on theirs, reached with the run's operator
+/// certificate (`environment::certificate`).
+///
+/// # Errors
+///
+/// REFUSED where the run holds no certificate, or as
+/// [`Externals::connect`] and [`Carried::through`] say.
+fn on_machines(real: &[RealNode], machines: &Machines, base: &Path) -> Result<Carried, String> {
+    let folder = environment::certificate().ok_or(
+        "REFUSED: the far ends run on virtual machines of their own, and the run holds no \
+         operator certificate to reach them with; Start-XmipTest -VirtualMachine names the \
+         one Deploy-XmipEnvironment made",
+    )?;
+    let identity = real::operator(&folder)?;
+    let arrived = Carried::arrivals();
+    let (far, bindings) = Externals::connect(&identity, (real, machines), base, &arrived)?;
+    let judged: Vec<Binding> = bindings
+        .iter()
+        .filter(|one| one.placement.placed == Placed::Send)
+        .cloned()
+        .collect();
+    Carried::through(&bindings, arrived, (far, judged))
 }
 
 /// Every node of `simulated` started as the `xmip-service` the run was

@@ -1,21 +1,22 @@
-//! The Systems Tests' nodes are machines of their own; the System Tests'
-//! are processes on one computer (ADR-0028, amendment 2026-11-23; the owner:
-//! *System Test is local. Systems Test test systems together*).
+//! The System Tests, which test the internals, and the Systems Tests, which
+//! test how nodes interact (the owner, 2026-11-25), each run as local
+//! processes on one computer or on virtual machines of their own, as
+//! `Start-XmipTest -Process` or `-VirtualMachine` chose (ADR-0028, amendment
+//! 2026-11-25; the owner: *there has to be a switch to run the tests, demo,
+//! as local processes or VMs*).
 //!
-//! The suite says which (`environment::machines`), never a name. On machines
-//! every node of the run — the nodes `-Nodes` named, or the cluster file's —
-//! and the cluster's own name, `-Cluster`, are resolved through this
-//! machine's own resolver, at the port the cluster's own cluster.xmip says
-//! the node is operated on. Every node whose name does not resolve is
-//! REFUSED, all of them in one sentence before any node is asked, with the
-//! `-Nodes` that run the ones that resolve, and none is spawned in its
-//! place. A name that resolves is not yet
-//! trusted: it must answer over its operate listener, inside Xmip's mutual
+//! The switch says which (`environment::machines`), never a name or a suite. On
+//! virtual machines every node of the cluster file is real, at the address
+//! of the machine the deployed environment recorded for it, at the port the
+//! cluster's own cluster.xmip says the node is operated on; a node with no
+//! machine is REFUSED, all of them in one sentence before any node is
+//! asked, and none is spawned in its place. A machine is not yet trusted:
+//! its node must answer over its operate listener, inside Xmip's mutual
 //! TLS with the operator certificate the run names
-//! (`environment::certificate`), declare itself the node of that name in
-//! that cluster (ADR-0053) and say what it can do (ADR-0056); anything else
-//! is REFUSED by name. A resolving cluster name must answer as a node of
-//! that cluster. On one computer no name is resolved at all.
+//! (`environment::certificate`), its certificate checked for the node's
+//! name, declare itself the node of that name in that cluster (ADR-0053)
+//! and say what it can do (ADR-0056); anything else is REFUSED by name. As
+//! local processes no node is real here.
 //!
 //! The rig never spawns, configures or stops a real node: an orchestrator
 //! owns a node's life (ADR-0052, ruling 8). It follows what the node
@@ -31,12 +32,12 @@ use runtime::plane::gather::{Follow, Gatherer, Reach};
 use runtime::plane::{Outcome, Remote};
 use xcluster::{ClusterError, Member, Membership};
 
-use crate::environment;
+use crate::environment::{self, Machines};
 use crate::roster::Roster;
 
 mod mapped;
 
-use mapped::{mapped, operate_port, resolving};
+use mapped::mapped;
 
 /// A run's nodes, sorted: the real ones as they answered, their names, the
 /// roster with each real node's roles as it declared them, and the
@@ -48,37 +49,34 @@ pub struct Sorted {
     pub simulated: Roster,
 }
 
-/// The nodes of `roster`, sorted into real and simulated: on machines
-/// (`environment::machines`) every one real, asked with the run's operator
-/// certificate (`environment::certificate`) as [`found`] does; on one
-/// computer none.
+/// The nodes of `roster`, sorted into real and simulated: on virtual
+/// machines (`environment::machines`) every one real, asked with the run's
+/// operator certificate (`environment::certificate`) as [`found`] does; as
+/// local processes none.
 ///
 /// # Errors
 ///
-/// As [`found`].
+/// As [`environment::machines`] and [`found`].
 pub fn sorted(cluster: &str, roster: Roster) -> Result<Sorted, String> {
+    let machines = environment::machines()?;
     let certificate = environment::certificate();
-    sort(
-        cluster,
-        roster,
-        environment::machines(),
-        certificate.as_deref(),
-    )
+    sort(cluster, roster, machines.as_ref(), certificate.as_deref())
 }
 
-/// [`sorted`], told whether the run is on machines and the folder of the
-/// operator certificate it asks them with.
+/// [`sorted`], told the virtual machines the run runs on, if any, and the
+/// folder of the operator certificate it asks them with.
 fn sort(
     cluster: &str,
     roster: Roster,
-    machines: bool,
+    machines: Option<&Machines>,
     certificate: Option<&Path>,
 ) -> Result<Sorted, String> {
-    let real = if machines {
-        let asked: Vec<String> = roster.names().into_iter().map(str::to_string).collect();
-        found(cluster, &asked, certificate)?
-    } else {
-        Vec::new()
+    let real = match machines {
+        Some(machines) => {
+            let asked: Vec<String> = roster.names().into_iter().map(str::to_string).collect();
+            found(cluster, &asked, machines, certificate)?
+        }
+        None => Vec::new(),
     };
     let names: Vec<String> = real.iter().map(|node| node.name.clone()).collect();
     let roster = real.iter().fold(roster, |roster, node| {
@@ -162,14 +160,16 @@ impl Read<'_> {
     }
 }
 
-/// A node on a machine of its own, as it answered.
+/// A node read where it answered, on a virtual machine of its own or
+/// started here as `xmip-service`.
 pub struct RealNode {
-    /// Its name, as typed and as it declared itself.
+    /// Its name, as the cluster file declares it and as it declared itself.
     pub name: String,
     /// The scope it declared itself at, `xmip:///<cluster>/node/<name>`:
     /// what a node-scoped act names it by, a secret set on it among them.
     pub scope: String,
-    /// Where it was reached: its name and its operate port.
+    /// Where it is: its machine's address and its operate port, or the
+    /// local endpoint of one started here.
     pub address: String,
     /// What it declared it can do.
     pub capability: Capability,
@@ -226,33 +226,24 @@ impl RealNode {
     }
 }
 
-/// The nodes `names` of `cluster` on machines of their own, each having
-/// resolved, answered and declared itself a node of `cluster`. The
-/// cluster's own name is asked too where it resolves.
+/// The nodes `names` of `cluster` on the virtual machines `machines` names,
+/// each having answered and declared itself a node of `cluster`.
 ///
 /// # Errors
 ///
-/// REFUSED, naming every name that does not resolve at once ([`mapped`]);
-/// then, naming the name, a resolving name the rig holds no certificate to
-/// ask, one that does not answer, or one that answers as something else.
+/// REFUSED, naming at once every node with no machine ([`mapped`]); then,
+/// naming the node, one the rig holds no certificate to ask, one that does
+/// not answer, or one that answers as something else.
 pub fn found(
     cluster: &str,
     names: &[String],
+    machines: &Machines,
     certificate: Option<&Path>,
 ) -> Result<Vec<RealNode>, String> {
-    if let Some(address) = resolving(cluster, &operate_port(cluster, None)?) {
-        let remote = answering(cluster, &address, certificate)?;
-        let declared = publication(cluster, &address, &remote)?.node;
-        if !declared.starts_with(&format!("xmip:///{cluster}/node/")) {
-            return Err(format!(
-                "REFUSED: the cluster name {cluster} resolves, at {address}, and answers as \
-                 {declared}, no node of cluster {cluster}"
-            ));
-        }
-    }
     let mut real = Vec::new();
-    for (name, address) in mapped(cluster, names)? {
-        let remote = answering(&name, &address, certificate)?;
+    for (name, at) in mapped(cluster, names, machines)? {
+        let address = at.to_string();
+        let remote = answering_at(&name, &address, certificate)?;
         let capability = declared(cluster, &name, &address, &remote)?;
         real.push(RealNode {
             scope: scope_of(cluster, &name),
@@ -265,24 +256,27 @@ pub fn found(
     Ok(real)
 }
 
-/// The operate listener at `address`, opened with the operator certificate
-/// in `folder`, which a resolving name needs to be asked at all.
-fn answering(name: &str, address: &str, folder: Option<&Path>) -> Result<Remote, String> {
+/// The operate listener of the node `name` at its machine's `address`,
+/// `host:port`, opened with the operator certificate in `folder`, which a
+/// node needs to be asked at all: connected to the address, and trusted
+/// only where its certificate names the node (`Remote::open_named`).
+fn answering_at(name: &str, address: &str, folder: Option<&Path>) -> Result<Remote, String> {
     let folder = folder.ok_or_else(|| {
         format!(
-            "REFUSED: {name} resolves, at {address}, and the run holds no operator certificate \
-             to ask it whether it is an Xmip node; name the folder of one with -Certificate"
+            "REFUSED: {name}, at {address}: the run holds no operator certificate to ask it \
+             whether it is an Xmip node; Start-XmipTest -VirtualMachine names the one \
+             Deploy-XmipEnvironment made"
         )
     })?;
     let identity = operator(folder)?;
-    Remote::open(address, &identity, rigs_clock())
-        .map_err(|problem| format!("REFUSED: {name} resolves, at {address}: {problem}"))
+    Remote::open_named(name, address, &identity, rigs_clock())
+        .map_err(|problem| format!("REFUSED: {name}, at {address}: {problem}"))
 }
 
 /// The tester's operator certificate in `folder`, as the roll presents it to
 /// what it asks: `operator.pem`, `operator.key` and `anchors.pem`, from the
 /// cluster's own authority — a node's operate listener, and a far end on a
-/// machine of its own (`crate::external::remote`).
+/// virtual machine of its own (`crate::external::remote`).
 ///
 /// # Errors
 ///
@@ -318,7 +312,7 @@ fn rigs_clock() -> Arc<dyn xcore::Clock> {
 /// What the node at `address` publishes, or REFUSED where it does not
 /// answer with a publication.
 fn publication(name: &str, address: &str, remote: &Remote) -> Result<Publication, String> {
-    let refused = |what: String| format!("REFUSED: {name} resolves, at {address}, and {what}");
+    let refused = |what: String| format!("REFUSED: {name}, at {address}, {what}");
     let (_, text) = remote
         .publication()
         .map_err(|problem| refused(format!("does not answer: {problem}")))?;
@@ -334,7 +328,7 @@ fn declared(
     address: &str,
     remote: &Remote,
 ) -> Result<Capability, String> {
-    let refused = |what: String| format!("REFUSED: {name} resolves, at {address}, and {what}");
+    let refused = |what: String| format!("REFUSED: {name}, at {address}, {what}");
     let publication = publication(name, address, remote)?;
     let scope = scope_of(cluster, name);
     if publication.node != scope {
@@ -356,59 +350,71 @@ fn declared(
 
 #[cfg(test)]
 mod tests {
+    use super::mapped::operate_port;
     use super::*;
     use crate::support::test_cluster;
 
+    /// The machine a node of the run has none of is refused by the node's
+    /// name, never resolved and never spawned; the port is the file's.
     #[test]
-    fn on_machines_a_name_that_does_not_resolve_is_refused_and_the_port_is_the_file_s() {
+    fn on_virtual_machines_a_node_with_no_machine_is_refused_by_name() {
         let cluster = test_cluster();
-        let port = operate_port(&cluster.name, None).expect("the file operates its nodes");
-        assert!(port.parse::<u16>().is_ok(), "{port}");
-        // A name no resolver knows: `.invalid` is reserved for it (RFC 6761).
-        let unknown = vec!["no-such-node.invalid".to_string()];
-        let refused = found(&cluster.name, &unknown, None)
-            .err()
-            .expect("a machine that is not there is refused, never spawned");
+        assert!(operate_port(&cluster.name, None).is_ok_and(|port| port > 0));
+        let name = cluster.node(0).name.clone();
+        let refused = found(
+            &cluster.name,
+            std::slice::from_ref(&name),
+            &Machines::default(),
+            None,
+        )
+        .err()
+        .expect("a node with no machine is refused, never spawned");
         assert!(
-            refused.starts_with("REFUSED: no-such-node.invalid does not resolve"),
+            refused.starts_with(&format!("REFUSED: {name} has no virtual machine")),
+            "{refused}"
+        );
+        assert!(
+            refused.contains("Deploy-XmipEnvironment -Path"),
             "{refused}"
         );
     }
 
     #[test]
-    fn every_node_that_does_not_resolve_is_refused_at_once_naming_the_nodes_that_do() {
+    fn every_node_with_no_machine_is_refused_at_once_before_any_is_asked() {
         let cluster = test_cluster();
-        let names = ["OP1.invalid", "localhost", "XX1.invalid"].map(str::to_string);
-        // No certificate: nothing is asked before every name has resolved.
-        let refused = found(&cluster.name, &names, None)
+        let names: Vec<String> = (0..3).map(|at| cluster.node(at).name.clone()).collect();
+        let machines = Machines::parse(&format!("{}=192.0.2.1", names[1])).expect("one");
+        // No certificate: nothing is asked before every node has a machine.
+        let refused = found(&cluster.name, &names, &machines, None)
             .err()
-            .expect("two machines that are not there are refused");
+            .expect("two nodes with no machine are refused");
         assert!(
-            refused.starts_with("REFUSED: OP1.invalid, XX1.invalid do not resolve"),
-            "{refused}"
-        );
-        assert!(
-            refused.contains("-Nodes localhost runs the nodes that resolve"),
+            refused.starts_with(&format!(
+                "REFUSED: {}, {} have no virtual machine",
+                names[0], names[2]
+            )),
             "{refused}"
         );
     }
 
     #[test]
-    fn on_one_computer_no_name_is_resolved_and_every_node_is_simulated() {
+    fn as_local_processes_no_node_is_real_and_every_node_is_simulated() {
         let cluster = test_cluster();
-        // A name every resolver knows: on one computer it is still a process.
-        let roster = Roster::of(&["localhost".to_string()]);
-        let sorted = sort(&cluster.name, roster.clone(), false, None).expect("nothing asked");
-        assert!(sorted.real.is_empty(), "no node is real on one computer");
+        let roster = Roster::of(&[cluster.node(0).name.clone()]);
+        let sorted = sort(&cluster.name, roster.clone(), None, None).expect("nothing asked");
+        assert!(sorted.real.is_empty(), "no node is real as local processes");
         assert_eq!(sorted.simulated, roster);
     }
 
     #[test]
-    fn a_resolving_name_with_no_certificate_to_ask_it_is_refused_by_name() {
-        let refused = answering("R", "localhost:7401", None)
+    fn a_node_with_no_certificate_to_ask_it_is_refused_by_name() {
+        let refused = answering_at("R", "192.0.2.1:7401", None)
             .err()
             .expect("refused");
-        assert!(refused.starts_with("REFUSED: R resolves"), "{refused}");
-        assert!(refused.contains("-Certificate"), "{refused}");
+        assert!(
+            refused.starts_with("REFUSED: R, at 192.0.2.1:7401"),
+            "{refused}"
+        );
+        assert!(refused.contains("Deploy-XmipEnvironment"), "{refused}");
     }
 }

@@ -149,25 +149,34 @@ Party-E's firewall openings and a direct link to the ERP, which the work
 placed on them requires (amendments 2026-11-24) —
 where each that stores nothing reaches the Storage nodes, by name, where
 every node is operated from, with its certificate's paths relative to its
-configuration, the Parties and the Xmip Applications — and nothing of where
-it runs: no cluster name, no machine's address, no absolute path. The run
-names the cluster, and its node that declared process writes the bindings,
-the run's own directories, slicing through `configure::slice_named` as an
-environment does; on machines of their own the environment templates under
-`deploy/dsc` give each machine its node's slice of the same file.
+configuration, the Parties and the Xmip Applications — and, in
+`[environment]` at its end, the far ends it trades with and the virtual
+machines it runs on, which slicing gives no node. It names no cluster, no
+machine's address and no absolute path. The run names the cluster, and its
+node that declared process writes the bindings, the run's own directories,
+slicing through `configure::slice_named` as an environment does; on virtual
+machines `Deploy-XmipEnvironment` gives each machine its node's slice of the
+same file (`deploy/dsc`).
 
-In the System Tests, `Core.System`, every node is **simulated** — a process
-this run spawned — or started here, and no name is resolved. In the Systems
-Tests, `Core.Systems`, every node is **real** (`src/real.rs`;
-`XMIP_SYSTEM_TEST_MACHINES`): every node of the run and `-Cluster` are
-resolved by this machine's resolver, at the port the file says that node is
-operated on. A name that does not resolve is REFUSED, and none is spawned in
-its place. A name that resolves must answer over its operate listener, asked with the
-operator certificate `-Certificate` names (`XMIP_SYSTEM_TEST_CERTIFICATE`:
-`operator.pem`, `operator.key`, `anchors.pem`), as that node of this cluster
-saying what it can do; it is then **real**, runs by the roles it declared,
-and is never spawned, configured or stopped. Anything else is REFUSED by
-name and nothing spawns. The roll follows each real node's publication
+The System Tests, `Core.System`, which test the internals, and the Systems
+Tests, `Core.Systems`, which test how nodes interact (the owner,
+2026-11-25), each run as local processes or on virtual machines, as
+`Start-XmipTest -Process` (what runs where no switch is given) or
+`-VirtualMachine` chooses; `-Container` is not built yet and is refused
+(ADR-0015 and ADR-0028, amendments 2026-11-25). As local
+processes every node is **simulated** — a process this run spawned — or
+started here. On virtual machines every node is **real** (`src/real.rs`;
+`XMIP_SYSTEM_TEST_MACHINES`): every node of the file is at the address of
+the machine `Deploy-XmipEnvironment` recorded for it on this host, at the
+port the file says that node is operated on, and no name is resolved. A node
+with no machine is REFUSED, and none is spawned in its place. Each must
+answer over its operate listener, its certificate checked for its name,
+asked with the operator certificate that deployment made
+(`XMIP_SYSTEM_TEST_CERTIFICATE`: `operator.pem`, `operator.key`,
+`anchors.pem`), as that node of this cluster saying what it can do; it is
+then **real**, runs by the roles it declared, and is never spawned,
+configured or stopped. Anything else is REFUSED by name and nothing spawns;
+the switch never makes or starts a virtual machine. The roll follows each real node's publication
 through the runtime's one gatherer (`runtime::plane::gather`, over the
 roll's roster as the cluster's membership, `xcluster::Membership`), told as it advances and never asking
 again, and merges what was heard into the run's snapshot every round;
@@ -225,12 +234,11 @@ nothing the rig keeps grows with the run's age. The run ends their input to stop
 once every file had its time to arrive. The cluster process is given the
 simulated nodes alone, and only they carry the relayed scenarios.
 
-**The far ends outside the cluster** carry the files on this computer, each a
-process of its own (src/external.rs, its program src/bin/external.rs;
+**The far ends outside the cluster** carry the files, as local processes each
+a process of its own here (src/external.rs, its program src/bin/external.rs;
 ADR-0028, amendment 2026-11-22): three senders and three receivers, named in
-[configuration/external.xmip](configuration/external.xmip) beside the
-cluster's file, each run from an image of its own,
-xmip-system-test-<cluster>-external-<name>. Each round each Receive
+the cluster's file, `[environment.far_ends]`, each run from an image of its
+own, `xmip-system-test-<cluster>-external-<name>`. Each round each Receive
 Location's document goes through the next sender in turn, which drops it as
 the rig did, so every sender reaches every node that receives; each Send
 Port delivers to one receiver, round robin in the order the Send Ports are
@@ -239,33 +247,30 @@ the Send Port, the file and when, and Carried judges it there. Each ends
 with its input and audits how many files it sent or received; the roll's
 stop says each count after *carried*.
 
-A node on a machine of its own is driven through the
-Parties' far end (`src/far_end.rs`): the roll serves SFTP on this computer,
-port 7422, each Location the environment placed on the real nodes a user of
-its own, drops into the Receive Locations' and is told of what the Send
-Ports put; no node is started beside real ones (ADR-0028, amendment
-2026-10-22). Each user logs in by the password its Location's secret holds,
-`far-end.<user>`: the roll mints it, sets it on the node that takes the
-Location through its operate listener, and the far end keeps only its
-verifier, checked by the password gate (`src/login.rs`; ADR-0019,
-amendment 2026-11-01). It enrolls no key: the check's key half is the
-ssh-key gate's (`Verifier::admits`), holding a key to the one user it is
-enrolled for, so a key is refused whatever user it signed for.
-
-**The far ends on machines of their own** (`src/external/serving.rs` and
-`remote.rs`; ADR-0028, amendment 2026-11-22) are used where every far end's
-name resolves, as a node on a machine is used where its name does: EXTTX1 to
-EXTTX3 and EXTRX1 to EXTRX3, named apart from every node. Each runs as the
+**The far ends on virtual machines of their own** (`src/external/serving.rs`
+and `remote.rs`; ADR-0028, amendments 2026-11-22 and 2026-11-25) drive the
+nodes on virtual machines: EXTTX1 to EXTTX3 and EXTRX1 to EXTRX3, named
+apart from every node, each at the address `XMIP_SYSTEM_TEST_MACHINES` gives
+it, a far end with none REFUSED by name; no node or far end is started
+here beside them. Each runs as the
 service `xmip-<name>` on its machine, `xmip-system-test-external --serve`,
 which the environment registers through the far end's own `--install` and
 the runtime's one registration of a service; the roll reaches it over Xmip's
-mutual TLS on port 7423 with the tester's operator certificate, and tells it
-the same lines as on one computer. The nodes' Receive Locations listen over
+mutual TLS on port 7423 with the tester's operator certificate, its
+certificate checked for its name, and tells it the same lines as a local
+process is told. The nodes' Receive Locations listen over
 HTTP on their nodes, as `xmip-service --slice --bind --listen` binds them,
 and each round the sender whose turn it is pushes to each, so every sender
 reaches every node that receives; each Send Port puts over SFTP on the
 receiver of its turn, `configure::placed::far_ends::far_end_of`, a user of
-its own whose password the roll mints and sets on its node. A receiver tells
+its own, served by Xmip's own SFTP server (`src/far_end.rs`). Each user logs
+in by the password its Location's secret holds, `far-end.<user>`: the roll
+mints it, sets it on the node that takes the Location through its operate
+listener, and the far end keeps only its verifier, checked by the password
+gate (`src/login.rs`; ADR-0019, amendment 2026-11-01). It enrolls no key:
+the check's key half is the ssh-key gate's (`Verifier::admits`), holding a
+key to the one user it is enrolled for, so a key is refused whatever user it
+signed for. A receiver tells
 each file put with its bytes, which the roll keeps where Carried judges it;
 a listening Location names no file, so Carried pairs a drop with its
 arrival by the stamp it carries.
@@ -760,10 +765,10 @@ parameter; this document does not repeat them. A suite is named
 `<Provider>.<Name>` (ADR-0011, ADR-0059), and a bare name is Xmip's own
 because `core` is the reserved provider. This crate runs two of them
 (ADR-0028, amendment 2026-11-23): `Core.System`, the System Tests — the
-default, and `System` names the same suite — every node a process on this
-computer; and `Core.Systems`, the Systems Tests, every node on a machine of
-its own that the environment's templates set up first, started by its name
-alone. `-Suite` takes wildcards as `-Test` does: `-Suite *` is every
+default, and `System` names the same suite — and `Core.Systems`, the
+Systems Tests, started by its name alone; each as local processes on this
+computer, `-Process`, or on the virtual machines `Deploy-XmipEnvironment`
+deployed, `-VirtualMachine` (ADR-0028, amendment 2026-11-25). `-Suite` takes wildcards as `-Test` does: `-Suite *` is every
 suite this estate knows but those started by name. A
 provider's suite joins by a declaration in `test/suite`, never by an edit to
 Xmip.
@@ -788,10 +793,11 @@ simulate, one process each, each declaring the roles `-NodeRole` gives it —
 `[nodes.RX1] roles = "receiving"`; a node it does not name declares nothing,
 and nothing here is worked out from a name; an empty list is a cluster of no
 nodes; omitted, the file holds every node the System Tests' own file declares,
-and the run record says the nodes and the file), `-Suite Core.Systems` is
-`XMIP_SYSTEM_TEST_MACHINES=true`, every node a machine, `-Certificate`
-is `XMIP_SYSTEM_TEST_CERTIFICATE`, the operator certificate a real node is
-asked with, `-NodeCapability` is each node's `capabilities = [...]` in the run's
+and the run record says the nodes and the file), `-VirtualMachine` is
+`XMIP_SYSTEM_TEST_MACHINES`, each node's and far end's `name=address` as
+the deployed environment recorded them, and `XMIP_SYSTEM_TEST_CERTIFICATE`,
+the operator certificate that deployment made, which a real node is asked
+with, `-NodeCapability` is each node's `capabilities = [...]` in the run's
 cluster file (its Node capabilities, `online` among them where it may assume
 the internet, ADR-0045; ADR-0056, amendment 2026-11-24), `-Duration` is
 `XMIP_SYSTEM_TEST_MAX_SECONDS`, `-TimeFactor` is `XMIP_SYSTEM_TEST_TIME_FACTOR`

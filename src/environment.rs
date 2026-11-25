@@ -4,11 +4,22 @@
 //! `test/XmipTest.Test.ps1` holds that file against this one, so a switch the
 //! roll reads is a switch an operator can reach.
 
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::roster::Roster;
 use crate::scenario;
+
+/// What a run runs as, in the words of `Start-XmipTest`'s switches: as local
+/// processes on one computer.
+pub const PROCESS: &str = "Process";
+
+/// What a run runs as on the virtual machines [`machines`] names.
+pub const VIRTUAL_MACHINE: &str = "VirtualMachine";
+
+/// The variable naming each node's and far end's virtual machine.
+const MACHINES: &str = "XMIP_SYSTEM_TEST_MACHINES";
 
 /// The scenarios named in `XMIP_SYSTEM_TEST_SCENARIOS`: none named is every
 /// one.
@@ -79,21 +90,84 @@ pub fn service() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// Whether the run is the Systems Tests, on an environment's machines:
-/// `XMIP_SYSTEM_TEST_MACHINES` is `true`, which `Start-XmipTest -Suite
-/// Core.Systems` sets. Every node of the run is then a machine that answers
-/// as that node, and none is spawned in its place; unset, the run is the
-/// System Tests and no name is resolved (ADR-0028, amendment 2026-11-23).
-/// The suite says which, never a name.
-#[must_use]
-pub fn machines() -> bool {
-    std::env::var("XMIP_SYSTEM_TEST_MACHINES").is_ok_and(|said| said.trim() == "true")
+/// The virtual machines the run runs on, `XMIP_SYSTEM_TEST_MACHINES`, which
+/// `Start-XmipTest -VirtualMachine` sets, for the System Tests and the
+/// Systems Tests alike, from what `Deploy-XmipEnvironment`
+/// recorded on this host: each node's and far end's `name=address`, comma
+/// separated. Every node of the run is then the machine at its address and
+/// none is spawned in its place, and no name is resolved; `None` where it
+/// is unset, and the run is local processes (ADR-0028, amendment
+/// 2026-11-25).
+///
+/// # Errors
+///
+/// REFUSED, in words, where an entry is malformed ([`Machines::parse`]).
+pub fn machines() -> Result<Option<Machines>, String> {
+    std::env::var(MACHINES)
+        .ok()
+        .filter(|said| !said.trim().is_empty())
+        .map(|said| Machines::parse(&said))
+        .transpose()
+}
+
+/// Each node's and far end's virtual machine, by name, as
+/// `XMIP_SYSTEM_TEST_MACHINES` says it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Machines(Vec<(String, IpAddr)>);
+
+impl Machines {
+    /// The machines `said` names: `name=address`, comma separated.
+    ///
+    /// # Errors
+    ///
+    /// REFUSED, naming the entry, where it is no `name=address`, its name is
+    /// none a process can carry, its address is no IP address, or a name is
+    /// said twice.
+    pub fn parse(said: &str) -> Result<Self, String> {
+        let mut machines: Vec<(String, IpAddr)> = Vec::new();
+        for entry in said.split(',').map(str::trim).filter(|one| !one.is_empty()) {
+            let refused = |why: &str| {
+                format!(
+                    "REFUSED: {MACHINES} says {entry}, {why}; Start-XmipTest -VirtualMachine \
+                     sets it from what Deploy-XmipEnvironment recorded"
+                )
+            };
+            let (name, address) = entry
+                .split_once('=')
+                .ok_or_else(|| refused("which is no name=address"))?;
+            let name = name.trim();
+            if !crate::image::shaped(name) {
+                return Err(refused(
+                    "and a name is letters, digits and hyphens starting with a letter",
+                ));
+            }
+            let address: IpAddr = address
+                .trim()
+                .parse()
+                .map_err(|_| refused("whose address is no IP address"))?;
+            if machines.iter().any(|(known, _)| known == name) {
+                return Err(refused("a name said twice"));
+            }
+            machines.push((name.to_string(), address));
+        }
+        Ok(Self(machines))
+    }
+
+    /// The address of the machine `name` runs on, where one is named.
+    #[must_use]
+    pub fn address(&self, name: &str) -> Option<IpAddr> {
+        self.0
+            .iter()
+            .find(|(known, _)| known == name)
+            .map(|(_, address)| *address)
+    }
 }
 
 /// The folder of the operator certificate a roll asks a real node with,
-/// `XMIP_SYSTEM_TEST_CERTIFICATE`, which `Start-XmipTest -Certificate` sets:
-/// `operator.pem`, the chain the cluster's authority signed, `operator.key`
-/// and `anchors.pem`, that authority. `None` where nothing named one.
+/// `XMIP_SYSTEM_TEST_CERTIFICATE`, which `Start-XmipTest -VirtualMachine`
+/// sets to the one `Deploy-XmipEnvironment` made: `operator.pem`, the chain
+/// the cluster's authority signed, `operator.key` and `anchors.pem`, that
+/// authority. `None` where nothing named one.
 #[must_use]
 pub fn certificate() -> Option<PathBuf> {
     std::env::var_os("XMIP_SYSTEM_TEST_CERTIFICATE")
@@ -193,4 +267,57 @@ pub fn time_factor() -> f64 {
         .ok()
         .and_then(|raw| raw.trim().parse::<f64>().ok())
         .unwrap_or(1.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::support::test_cluster;
+
+    /// Each node's and far end's address, as `Start-XmipTest -VirtualMachine`
+    /// writes them from the deployed record; one not named has none.
+    #[test]
+    fn the_machines_are_each_name_at_its_address() {
+        let cluster = test_cluster();
+        let (first, second) = (&cluster.node(0).name, &cluster.node(1).name);
+        let said = format!("{first}=192.0.2.10, {second}=192.0.2.11,");
+        let machines = Machines::parse(&said).expect("two machines");
+        assert_eq!(machines.address(first), Some([192, 0, 2, 10].into()));
+        assert_eq!(machines.address(second), Some([192, 0, 2, 11].into()));
+        assert_eq!(
+            machines.address("absent"),
+            None,
+            "a name not said has no machine"
+        );
+        assert_eq!(Machines::parse(" ").expect("none"), Machines::default());
+    }
+
+    /// An entry that is no `name=address`, a name no process can carry, an
+    /// address that is none and a name said twice are each refused in words.
+    #[test]
+    fn a_malformed_entry_is_refused_naming_it() {
+        let cluster = test_cluster();
+        let name = &cluster.node(0).name;
+        let cases = [
+            (name.clone(), "no name=address"),
+            (
+                "two words=192.0.2.1".to_string(),
+                "letters, digits and hyphens",
+            ),
+            (format!("{name}=machine.example"), "no IP address"),
+            (
+                format!("{name}=192.0.2.1,{name}=192.0.2.2"),
+                "a name said twice",
+            ),
+        ];
+        for (said, why) in cases {
+            let refused = Machines::parse(&said).expect_err(&said);
+            assert!(
+                refused.starts_with(&format!("REFUSED: {MACHINES} says ")),
+                "{refused}"
+            );
+            assert!(refused.contains(why), "{said}: {refused}");
+            assert!(refused.contains("Deploy-XmipEnvironment"), "{refused}");
+        }
+    }
 }

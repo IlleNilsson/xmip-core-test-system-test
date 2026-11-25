@@ -17,7 +17,6 @@ use crate::carried::Carried;
 use crate::cluster::{Orders, Spawned, cluster_binary};
 use crate::drop_box::Dropping;
 use crate::environment;
-use crate::far_end::FarEnd;
 use crate::in_process::InProcess;
 use crate::real::RealNode;
 use crate::rotation::leveled;
@@ -239,11 +238,10 @@ pub fn reading(
     Ok(served)
 }
 
-/// The run's first lines said: `first`, which nodes of `real` answered
-/// where, and the Parties' far end where one is served.
-pub fn announce(mut first: Vec<String>, real: &[RealNode], far_end: Option<&FarEnd>) {
+/// The run's first lines said: `first`, and which nodes of `real` answered
+/// where.
+pub fn announce(mut first: Vec<String>, real: &[RealNode]) {
     first.extend(crate::run::found(real));
-    first.extend(far_end.map(FarEnd::said));
     for line in first {
         println!("{line}");
     }

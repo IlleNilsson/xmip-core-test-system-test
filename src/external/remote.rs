@@ -1,8 +1,10 @@
-//! The far ends on machines of their own, as the roll reaches them: each
-//! the service `xmip-system-test-external --serve` runs as on its machine
-//! (`serving.rs`), found by its own name, as a node is found by its own,
-//! and told over Xmip's mutual TLS with the tester's operator
-//! certificate (`crate::real::operator`).
+//! The far ends on virtual machines of their own, as the roll reaches them:
+//! each the service `xmip-system-test-external --serve` runs as on its
+//! machine (`serving.rs`), at the address the deployed environment recorded
+//! for it (`environment::machines`), as a node is reached at its own, its
+//! certificate checked for its name, and told over Xmip's mutual TLS with
+//! the tester's operator certificate (`crate::real::operator`). No name is
+//! resolved.
 //!
 //! The real nodes' Locations are bound as their environment bound them
 //! (`configure::placed::far_ends::bound`, which `xmip-service --slice
@@ -10,12 +12,12 @@
 //! and each round the sender whose turn it is pushes to it, so any sender
 //! reaches any node that receives; each Send Port puts on the receiver of
 //! its turn, a user of its own there whose password the roll mints and sets
-//! on the node that takes it, as the far end on one computer has it set
-//! (`crate::far_end`). A receiver tells what it took with its bytes, kept in
-//! a folder of the run's, where Carried judges it.
+//! on the node that takes it (`crate::far_end`). A receiver tells what it
+//! took with its bytes, kept in a folder of the run's, where Carried judges
+//! it.
 
 use std::io::Write;
-use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::net::{SocketAddr, TcpStream};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -24,8 +26,9 @@ use configure::placed::far_ends::{self, far_end_of};
 use configure::placed::{self, Placed};
 
 use super::serving::{CONTROL_PORT, RECEIVER, SENDER, SERVE, User};
-use super::{Externals, FILE, Running, Told, named};
+use super::{Externals, Named, Running, Told, named};
 use crate::carried::{Arrived, Binding, Spot};
+use crate::environment::{self, Machines};
 use crate::login;
 use crate::real::RealNode;
 use crate::subscribing::CLUSTER;
@@ -33,44 +36,60 @@ use crate::subscribing::CLUSTER;
 /// How long a far end may take to answer a connection.
 const REACH: Duration = Duration::from_secs(5);
 
-/// Whether the far ends the shipped file names run on machines of their
-/// own: every one's name resolving; none resolving, they do not, and the
-/// Parties' far end is served on this computer as before.
+/// The virtual machines the far ends of the run of `cluster` run on, as
+/// `environment::machines` names them, every far end the System Tests'
+/// cluster file names among them; `None` as local processes, where each far
+/// end is a process of its own here.
 ///
 /// # Errors
 ///
-/// REFUSED, naming them, where some resolve and some do not: the roll
-/// would place differently from the environment.
-pub fn on_machines() -> Result<bool, String> {
-    let named = named(FILE)?;
-    let all: Vec<&String> = named.senders.iter().chain(&named.receivers).collect();
-    let resolving: Vec<&&String> = all
+/// As `environment::machines`; REFUSED, naming them, where a far end has
+/// no machine ([`every_far_end`]).
+pub fn on_machines(cluster: &str) -> Result<Option<Machines>, String> {
+    let Some(machines) = environment::machines()? else {
+        return Ok(None);
+    };
+    every_far_end(&named(CLUSTER)?, &machines, cluster)?;
+    Ok(Some(machines))
+}
+
+/// Every far end of `named` has a machine in `machines`.
+///
+/// # Errors
+///
+/// REFUSED, naming in one sentence every far end with none, and the
+/// `Deploy-XmipEnvironment` that makes them.
+fn every_far_end(named: &Named, machines: &Machines, cluster: &str) -> Result<(), String> {
+    let missing: Vec<&str> = named
+        .senders
         .iter()
-        .filter(|name| {
-            (name.as_str(), CONTROL_PORT)
-                .to_socket_addrs()
-                .is_ok_and(|mut found| found.next().is_some())
-        })
+        .chain(&named.receivers)
+        .filter(|name| machines.address(name).is_none())
+        .map(String::as_str)
         .collect();
-    match resolving.len() {
-        0 => Ok(false),
-        count if count == all.len() => Ok(true),
-        _ => Err(format!(
-            "REFUSED: of the far ends, only {} resolve by their names; every one runs on a \
-             machine of its own, or none does",
-            resolving
-                .iter()
-                .map(|name| name.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )),
+    if missing.is_empty() {
+        return Ok(());
     }
+    let (ends, have) = if missing.len() == 1 {
+        ("end", "has")
+    } else {
+        ("ends", "have")
+    };
+    Err(format!(
+        "REFUSED: the far {ends} {} {have} no virtual machine in the environment deployed \
+         for cluster {cluster}: on virtual machines every far end is the machine \
+         Deploy-XmipEnvironment made for it, and none is started here; \
+         Deploy-XmipEnvironment -Path <the System Tests' cluster file> -Cluster {cluster} \
+         makes them",
+        missing.join(", ")
+    ))
 }
 
 impl Externals {
-    /// Every far end the shipped file names reached on its machine with the
-    /// tester's `identity`, for the run of the real nodes `real` beneath
-    /// `area`, each arrival told in `arrived`; with them every Receive
+    /// Every far end the System Tests' cluster file names reached on its
+    /// virtual machine in `machines` with the tester's `identity`, for the
+    /// run of the real nodes `real` beneath `area`, each arrival told in
+    /// `arrived`; with them every Receive
     /// Location and Send Port placed over `real`, a Receive Location at the
     /// address it listens at on its node, a Send Port where its receiver's
     /// takings are kept, which Carried judges.
@@ -81,11 +100,11 @@ impl Externals {
     /// did not take a password, or a placement the file refuses.
     pub fn connect(
         identity: &tls::Identity,
-        real: &[RealNode],
+        (real, machines): (&[RealNode], &Machines),
         area: &Path,
         arrived: &Arrived,
     ) -> Result<(Self, Vec<Binding>), String> {
-        let named = named(FILE)?;
+        let named = named(CLUSTER)?;
         let reals: Vec<String> = real.iter().map(|node| node.name.clone()).collect();
         let placements = placed::placements(CLUSTER, &placed::present(CLUSTER, &reals)?)?;
         let hosts = named.receivers.clone();
@@ -100,9 +119,10 @@ impl Externals {
             delivered_to: Vec::new(),
         };
         for name in &named.senders {
+            let at = (name.as_str(), machines);
             started
                 .senders
-                .push(reached(name, &config, &[SENDER.to_string()], None)?);
+                .push(reached(at, &config, &[SENDER.to_string()], None)?);
         }
         let mut users: Vec<Vec<String>> = vec![Vec::new(); named.receivers.len()];
         let (mut bindings, mut send) = (Vec::new(), 0);
@@ -150,27 +170,30 @@ impl Externals {
                 arrived: Some(arrived),
                 into: Some(into),
             };
-            started
-                .receivers
-                .push(reached(name, &config, &told, Some(receiving))?);
+            started.receivers.push(reached(
+                (name.as_str(), machines),
+                &config,
+                &told,
+                Some(receiving),
+            )?);
         }
         Ok((started, bindings))
     }
 }
 
-/// The far end `name` reached on its machine over Xmip's mutual TLS with
+/// The far end `name` reached on its machine in `machines`, at its control
+/// port, its certificate checked for its name, over Xmip's mutual TLS with
 /// `config`, told `said`, a line each, and waited for until it is ready.
 fn reached(
-    name: &str,
+    (name, machines): (&str, &Machines),
     config: &Arc<tls::ClientConfig>,
     said: &[String],
     told: Option<Told<'_>>,
 ) -> Result<Running, String> {
-    let address = (name, CONTROL_PORT)
-        .to_socket_addrs()
-        .ok()
-        .and_then(|mut found| found.next())
-        .ok_or_else(|| format!("REFUSED: the far end {name}: its name does not resolve"))?;
+    let address = machines
+        .address(name)
+        .map(|address| SocketAddr::new(address, CONTROL_PORT))
+        .ok_or_else(|| format!("REFUSED: the far end {name} has no virtual machine"))?;
     told_at((name, name, address), config, said, told)
 }
 
@@ -213,7 +236,34 @@ mod tests {
     use super::super::serving;
     use super::*;
     use crate::carried::Carried;
-    use crate::support::scratch;
+    use crate::support::{scratch, test_cluster};
+
+    /// On virtual machines every far end the cluster file names is at its
+    /// machine's address; one with none is refused by its name, never
+    /// resolved and never started here.
+    #[test]
+    fn a_far_end_with_no_virtual_machine_is_refused_by_name() {
+        let named = named(CLUSTER).expect("the cluster file's far ends");
+        let cluster = test_cluster().name;
+        let all: Vec<&String> = named.senders.iter().chain(&named.receivers).collect();
+        let every: Vec<String> = all
+            .iter()
+            .enumerate()
+            .map(|(at, name)| format!("{name}=192.0.2.{}", at + 1))
+            .collect();
+        let machines = Machines::parse(&every.join(",")).expect("every far end");
+        assert!(every_far_end(&named, &machines, &cluster).is_ok());
+        let without = Machines::parse(&every[1..].join(",")).expect("all but one");
+        let refused = every_far_end(&named, &without, &cluster).expect_err("one missing");
+        assert!(
+            refused.starts_with(&format!("REFUSED: the far end {} has no virtual", all[0])),
+            "{refused}"
+        );
+        assert!(
+            refused.contains("Deploy-XmipEnvironment -Path"),
+            "{refused}"
+        );
+    }
 
     /// A far end on a machine of its own, here on loopback, reached as the
     /// roll reaches one over Xmip's mutual TLS: a sender's session drops

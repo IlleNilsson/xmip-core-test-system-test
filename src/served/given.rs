@@ -74,7 +74,7 @@ pub(super) fn cluster_text(
             .find(|one| one.placement == *placement)
             .and_then(|one| match &one.spot {
                 Spot::Folder(folder) => Some(folder.display().to_string().replace('\\', "/")),
-                Spot::FarEnd(_) | Spot::Listening(_) => None,
+                Spot::Listening(_) => None,
             });
         placed::Binding {
             address: folder.unwrap_or_default(),
@@ -463,7 +463,7 @@ mod tests {
     /// is reached by an executing node and a sending one.
     #[test]
     fn the_system_test_files_put_every_node_and_far_end_of_the_plan_to_work() {
-        use crate::external::{FILE, named, sender};
+        use crate::external::{named, sender};
         use configure::placed::far_ends::far_end_of;
         use std::collections::BTreeSet;
         let declared = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
@@ -524,7 +524,7 @@ mod tests {
                     && roles(to).contains(&NodeRole::Sending)),
             "documents go from a receiving node to a sending one: {across:?}"
         );
-        let far = named(FILE).expect("the far ends");
+        let far = named(CLUSTER).expect("the far ends");
         let receiving: BTreeSet<&str> = of(Placed::Receive).map(|one| one.node.as_str()).collect();
         for turn in 0..far.senders.len() {
             let reached: BTreeSet<&str> = of(Placed::Receive)

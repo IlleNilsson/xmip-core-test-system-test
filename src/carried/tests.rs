@@ -29,7 +29,7 @@ fn bound(placed: Placed, name: &str, node: &str, folder: PathBuf) -> Binding {
 fn folder(binding: &Binding) -> &Path {
     match &binding.spot {
         Spot::Folder(folder) => folder,
-        Spot::FarEnd(_) | Spot::Listening(_) => panic!("a folder"),
+        Spot::Listening(_) => panic!("a folder"),
     }
 }
 

@@ -15,18 +15,20 @@ use crate::stress::Stress;
 pub const CARRIED: &str = "Carried";
 
 /// The run of `cluster` driving the `chosen` scenarios (none chosen is every
-/// one) over the nodes of `roster` at `stress`, those named in `real` on
-/// machines of their own and the rest simulated: the tests by the names a
-/// person asks for them — [`CARRIED`] alone where it is `served_only`, every
-/// node read — and what each node was started with, its roles and its Node
-/// capabilities. The shape is `observe::Run`'s; this only fills it.
+/// one) over the nodes of `roster` at `stress`, those named in `real` read
+/// where they answered and the rest simulated, run as `runs_as`
+/// (`environment::PROCESS` or `environment::VIRTUAL_MACHINE`): the tests by
+/// the names a person asks for them — [`CARRIED`] alone where it is
+/// `served_only`, every node read — and what each node was started with,
+/// its roles and its Node capabilities. The shape is `observe::Run`'s; this
+/// only fills it.
 #[must_use]
 pub fn started(
     cluster: &str,
     (chosen, served_only): (&[String], bool),
     roster: &Roster,
     stress: Stress,
-    real: &[String],
+    (real, runs_as): (&[String], &str),
 ) -> Run {
     let scenarios: Vec<&str> = if chosen.is_empty() {
         SCENARIOS.to_vec()
@@ -56,6 +58,7 @@ pub fn started(
             .collect(),
         stress: stress.name().to_string(),
         real: real.to_vec(),
+        runs_as: runs_as.to_string(),
     }
 }
 
@@ -72,8 +75,8 @@ pub fn found(real: &[RealNode]) -> Option<String> {
         .map(|node| format!("{} at {}", node.name, node.address))
         .collect();
     Some(format!(
-        "  real, each read where it answers — on a machine of its own, or started here as \
-         xmip-service: {}; the rest simulated",
+        "  real, each read where it answers — on a virtual machine of its own, or started \
+         here as xmip-service: {}; the rest simulated",
         named.join(", ")
     ))
 }
@@ -129,6 +132,7 @@ fn test_name(scenario: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::environment::{PROCESS, VIRTUAL_MACHINE};
     use crate::support::{path, test_cluster};
 
     #[test]
@@ -155,20 +159,28 @@ mod tests {
             (&["round-trip".to_string()], false),
             &roster,
             Stress::Harsh,
-            &[first.to_string()],
+            (&[first.to_string()], VIRTUAL_MACHINE),
         );
         assert_eq!(run.real, [first], "the real nodes are said apart");
+        assert_eq!(run.runs_as, "VirtualMachine", "the switch's own word");
         assert_eq!(run.tests, ["RoundTrip"]);
         assert_eq!(run.nodes, [first, second, bare]);
         assert_eq!(run.roles, roles);
         assert_eq!(run.capabilities, [format!("{first}=online")]);
         assert_eq!((run.cluster.as_str(), run.stress.as_str()), (c, "harsh"));
 
-        let every = started(c, (&[], false), &Roster::default(), Stress::Calm, &[]);
+        let every = started(
+            c,
+            (&[], false),
+            &Roster::default(),
+            Stress::Calm,
+            (&[], PROCESS),
+        );
         assert!(
             every.real.is_empty() && found(&[]).is_none(),
             "all simulated"
         );
+        assert_eq!(every.runs_as, "Process");
         assert_eq!(
             every.tests,
             [
@@ -181,7 +193,7 @@ mod tests {
                 "DailyBacklog"
             ]
         );
-        let served = started(c, (&[], true), &roster, Stress::Realistic, &[]);
+        let served = started(c, (&[], true), &roster, Stress::Realistic, (&[], PROCESS));
         assert_eq!(served.tests, [CARRIED], "a served run lists only Carried");
     }
 }
