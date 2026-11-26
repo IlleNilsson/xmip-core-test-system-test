@@ -1,5 +1,5 @@
 //! The node's configuration a process stage reads its Subscriptions from:
-//! the System Tests' cluster configuration with the run's names and the
+//! the Reference Environment with the run's names and the
 //! bindings that place every Application on the run's nodes, sliced as
 //! deployment slices it. Split from `subscribing.rs` on 2026-10-13, when the
 //! bindings came to be written from the sections. The file names no
@@ -16,8 +16,8 @@ use configure::placed::{self, Placed};
 use super::CLUSTER;
 use crate::roster::Roster;
 
-/// Write this node's configuration, sliced from the System Tests' cluster
-/// configuration with the run's names and the bindings that place every
+/// Write this node's configuration, sliced from the Reference
+/// Environment with the run's names and the bindings that place every
 /// Application the file designs on the run's nodes (`configure::placed`) — each Receive Location
 /// on the first node that declared receive, each Send Port on the first
 /// that declared send, each Work Process on every node serving process,

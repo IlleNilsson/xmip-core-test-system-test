@@ -3,7 +3,7 @@
 //! computer — test level 1 with nodes the same code runs as on machines of
 //! their own (ADR-0028, amendment 2026-10-22). The run is their environment
 //! and gives each what an environment gives a machine's node: its slice of
-//! the System Tests' cluster file under the run's cluster name, its
+//! the Reference Environment under the run's cluster name, its
 //! certificate from the System Tests' authority, kept across runs
 //! (`environment::authority`, `provision::node`), each of
 //! its planes an address on loopback where a machine's has its own, the

@@ -129,7 +129,7 @@ node under its `[nodes]` is one process, declaring the roles its `roles` key
 says (`Roster::of_cluster`, over `configure::cluster::roles`), and a roll told
 no file is REFUSED. `Start-XmipTest` writes the run's own file from
 `-Cluster` and the nodes `-Nodes` names, or, where it names none, every node
-of the System Tests' own cluster file, [`configuration/cluster.xmip`](configuration/cluster.xmip),
+of the Reference Environment, [`configuration/cluster.xmip`](configuration/cluster.xmip),
 each with the roles `-NodeRole` states or that file declares. Nothing is
 counted or numbered (ADR-0056, amendment 2026-10-03). Where no node declares
 a stage, each runs whole tests itself, and both the roll's first line and
@@ -138,9 +138,11 @@ a stage, each runs whole tests itself, and both the roll's first line and
 ### One file, simulated nodes and real ones, 2026-10-21
 
 The owner: *one TOML file that can be run for tests regardless of node
-faking or actual nodes.* `configuration/cluster.xmip` is that file (ADR-0028,
-amendment 2026-10-21). It declares the cluster's eleven nodes and their roles,
-as the owner's node plan of 2026-11-22 lays them out — RX1 to RX3 receiving,
+faking or actual nodes.* `configuration/cluster.xmip` is that file, the
+Reference Environment, Xmip's one definition of an environment (ADR-0028,
+amendments 2026-10-21 and 2026-11-26). It declares the cluster's eleven
+nodes and their roles, as the owner's node plan of 2026-11-22 lays them out
+— RX1 to RX3 receiving,
 EX1 processing, EX2 executing, TX1 to TX3 sending, OP1 operational and
 monitoring, DS1 and DS2 storage (ADR-0028 and ADR-0056, amendments
 2026-11-22) — the Node capabilities two of them declare, EX1 Order
@@ -502,7 +504,7 @@ really hold.
 ### A node that processes routes by real Subscriptions, 2026-09-30
 
 The RoundTrip test runs the Xmip Applications held as sections of the
-System Tests' cluster configuration,
+Reference Environment,
 [`configuration/cluster.xmip`](configuration/cluster.xmip) (ADR-0064 and ADR-0031,
 amendments 2026-10-03): since 2026-10-13 two business flows an ERP runs with
 its Parties, order to cash and procure to pay, their Receive Locations,

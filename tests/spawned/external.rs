@@ -1,6 +1,6 @@
 //! The far ends outside the cluster, each a process of its own, as a run of
 //! nodes started as `xmip-service` starts them (ADR-0028, amendment
-//! 2026-11-22): every far end the System Tests' cluster file names in
+//! 2026-11-22): every far end the Reference Environment names in
 //! `[environment.far_ends]` started, a sender's
 //! turn moving one further each round, a receiver taking what a Send Port
 //! delivers and telling of it, and every one ended with its input. The test

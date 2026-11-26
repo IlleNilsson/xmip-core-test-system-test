@@ -43,7 +43,7 @@ pub(super) fn mapped(
         "REFUSED: {} {has} no virtual machine in the environment deployed for cluster \
          {cluster}: on virtual machines every node of the run is the machine \
          Deploy-XmipEnvironment made for it, and none is spawned in its place; \
-         Deploy-XmipEnvironment -Path <the System Tests' cluster file> -Cluster {cluster} \
+         Deploy-XmipEnvironment -Path <the Reference Environment> -Cluster {cluster} \
          makes them",
         unmapped.join(", ")
     ))
@@ -58,14 +58,12 @@ pub(super) fn operate_port(cluster: &str, node: Option<&str>) -> Result<u16, Str
     let asked = node
         .filter(|name| declared.iter().any(|one| one == name))
         .or_else(|| declared.first().map(String::as_str))
-        .ok_or("REFUSED: the System Tests' cluster.xmip declares no node")?;
+        .ok_or("REFUSED: the Reference Environment declares no node")?;
     let document = configure::parse_toml(&configure::slice_named(CLUSTER, asked, cluster)?)?;
     let listen = document
         .operate
         .and_then(|operate| operate.listen)
-        .ok_or_else(|| {
-            format!("REFUSED: the System Tests' cluster.xmip operates {asked} nowhere")
-        })?;
+        .ok_or_else(|| format!("REFUSED: the Reference Environment operates {asked} nowhere"))?;
     listen
         .rsplit_once(':')
         .and_then(|(_, port)| port.parse().ok())

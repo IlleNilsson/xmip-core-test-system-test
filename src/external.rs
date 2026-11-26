@@ -2,8 +2,8 @@
 //! documents into the Receive Locations and the receivers that take what the
 //! Send Ports deliver, each a process of its own (the owner's node plan,
 //! 2026-11-22: *the [System Tests'] far ends, processes of their own*; ADR-0028
-//! clause 2 and amendment 2026-11-22). They are named in the System Tests'
-//! cluster file, `[environment.far_ends]`, never in code, and each runs the
+//! clause 2 and amendment 2026-11-22). They are named in the Reference
+//! Environment, `[environment.far_ends]`, never in code, and each runs the
 //! program `xmip-system-test-external`: as local processes from an image of
 //! its own, `xmip-system-test-<cluster>-external-<name>` (ADR-0053), told
 //! through its input; on a virtual machine of its own as the service it
@@ -132,7 +132,7 @@ pub struct Externals {
 }
 
 impl Externals {
-    /// The far ends the System Tests' cluster file names, each started as
+    /// The far ends the Reference Environment names, each started as
     /// `program` for the run of `cluster` over `bindings`: every sender, and
     /// every receiver watching the Send Ports' folders it is given, taking
     /// into a folder of its own beneath `area` and telling `arrived`. With them,
@@ -305,7 +305,7 @@ impl Drop for Externals {
 mod tests {
     use super::*;
 
-    /// The far ends are the System Tests' cluster file's, in its
+    /// The far ends are the Reference Environment's, in its
     /// `[environment.far_ends]`: no file of their own.
     #[test]
     fn the_cluster_file_names_three_senders_and_three_receivers() {

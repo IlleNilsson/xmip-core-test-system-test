@@ -39,8 +39,8 @@ use crate::subscribing::CLUSTER;
 const REACH: Duration = Duration::from_secs(5);
 
 /// The virtual machines the far ends of the run of `cluster` run on, as
-/// `environment::machines` names them, every far end the System Tests'
-/// cluster file names among them; `None` as local processes, where each far
+/// `environment::machines` names them, every far end the Reference
+/// Environment names among them; `None` as local processes, where each far
 /// end is a process of its own here.
 ///
 /// # Errors
@@ -81,14 +81,14 @@ fn every_far_end(named: &Named, machines: &Machines, cluster: &str) -> Result<()
         "REFUSED: the far {ends} {} {have} no virtual machine in the environment deployed \
          for cluster {cluster}: on virtual machines every far end is the machine \
          Deploy-XmipEnvironment made for it, and none is started here; \
-         Deploy-XmipEnvironment -Path <the System Tests' cluster file> -Cluster {cluster} \
+         Deploy-XmipEnvironment -Path <the Reference Environment> -Cluster {cluster} \
          makes them",
         missing.join(", ")
     ))
 }
 
 impl Externals {
-    /// Every far end the System Tests' cluster file names reached on its
+    /// Every far end the Reference Environment names reached on its
     /// virtual machine in `machines` with the tester's `identity`, for the
     /// run of the real nodes `real` beneath `area`, each arrival told in
     /// `arrived`; with them every Receive

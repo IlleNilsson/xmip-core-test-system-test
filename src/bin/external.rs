@@ -1,7 +1,7 @@
 //! `xmip-system-test-external`: one far end outside the cluster, a process of
 //! its own (the owner's node plan, 2026-11-22: *the [System Tests'] far ends,
 //! processes of their own*; ADR-0028, amendment 2026-11-22). As local
-//! processes the roll starts each the System Tests' cluster file names in
+//! processes the roll starts each the Reference Environment names in
 //! `[environment.far_ends]`, from an image named for it,
 //! `xmip-system-test-<cluster>-external-<name>`: a sender drops each file it
 //! is handed into a Receive Location's folder, a receiver takes what the
@@ -35,7 +35,7 @@ usage: xmip-system-test-external --name TX1 --sender
        xmip-system-test-external --configuration <folder> --listening
 
 One far end outside the cluster, started by the roll for each the
-System Tests' cluster.xmip names in [environment.far_ends]. A sender reads, a line each,
+Reference Environment names in [environment.far_ends]. A sender reads, a line each,
 a document, where it goes and a name, tab-separated, drops it there and
 answers `dropped` or `failed`. A receiver moves each whole file a Send Port
 delivers into its folder and says `arrived`, the Send Port, the file and

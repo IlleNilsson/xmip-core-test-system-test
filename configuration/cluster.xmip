@@ -1,8 +1,13 @@
-# The System Tests' cluster configuration: one file for a run as local
-# processes on one computer and for the same cluster on virtual machines of
-# its own (the owner, 2026-10-21: *one TOML file that can be run for tests
-# regardless of node faking or actual nodes*; 2026-11-25: *I still don't get
-# why there is a need for two files?*; ADR-0028, amendment 2026-11-25). It
+# The Reference Environment, Xmip's one definition of an environment
+# (ADR-0028, amendment 2026-11-26), drawn in the Reference Environment deck
+# (asset/brand/presentation/Xmip-environment.pptx).
+#
+# The cluster configuration the System Tests and the Systems Tests use: one
+# file for a run as local processes on one computer and for the same cluster
+# on virtual machines of its own (the owner, 2026-10-21: *one TOML file that
+# can be run for tests regardless of node faking or actual nodes*;
+# 2026-11-25: *I still don't get why there is a need for two files?*;
+# ADR-0028, amendment 2026-11-25). It
 # says what the cluster is — its nodes and their roles, where each reaches
 # Xmip Storage and is operated from, its Parties and its Xmip Applications —
 # and, in [environment] at its end, the far ends it trades with and the

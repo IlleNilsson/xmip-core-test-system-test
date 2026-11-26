@@ -90,7 +90,7 @@
 //! its Receive Locations each round (`carried.rs`); simulated where not.
 //!
 //! **Real nodes are driven through the far ends outside the cluster**, the
-//! System Tests' cluster file's `[environment.far_ends]` (`external.rs`):
+//! Reference Environment's `[environment.far_ends]` (`external.rs`):
 //! as local processes each a process of its own here, on virtual machines
 //! or in containers each on its own, at the address
 //! `XMIP_SYSTEM_TEST_MACHINES` gives it; they

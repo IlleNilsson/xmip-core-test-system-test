@@ -2,7 +2,7 @@
 //! taken up from the TOML configuration it binds, as a real node takes them.
 //!
 //! The System Tests' `RoundTrip` test runs the Xmip Applications held as
-//! sections of the System Tests' cluster configuration,
+//! sections of the Reference Environment,
 //! `configuration/cluster.xmip` — business flows an ERP runs with its Parties —
 //! each Subscription picking up one kind of document by its message type and
 //! recipient and routing it to a Send Port the send stage serves (ADR-0028,
@@ -65,7 +65,7 @@ use crate::handoff::Handoff;
 use crate::roster::Roster;
 use crate::schedule::CONTRACTS;
 
-/// The System Tests' cluster configuration, as this repository ships it: the
+/// The Reference Environment, as this repository ships it: the
 /// `RoundTrip` Application's section.
 pub const CLUSTER: &str = include_str!("../configuration/cluster.xmip");
 
