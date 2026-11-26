@@ -132,7 +132,7 @@ transport_websocket = { package = "xmip-core-transport-websocket", git = "https:
 transport_mllp = { package = "xmip-core-transport-mllp", git = "https://github.com/IlleNilsson/xmip-core-transport-mllp", branch = "main" }
 transport_modbus = { package = "xmip-core-transport-modbus", git = "https://github.com/IlleNilsson/xmip-core-transport-modbus", branch = "main" }
 transport_bacnet = { package = "xmip-core-transport-bacnet", git = "https://github.com/IlleNilsson/xmip-core-transport-bacnet", branch = "main" }
-transport_serial = { package = "xmip-core-transport-serial", git = "https://github.com/IlleNilsson/xmip-core-transport-serial", branch = "main", default-features = false }
+transport_serial = { package = "xmip-core-transport-serial", git = "https://github.com/IlleNilsson/xmip-core-transport-serial", branch = "main" }
 transport_can_bus = { package = "xmip-core-transport-can-bus", git = "https://github.com/IlleNilsson/xmip-core-transport-can-bus", branch = "main" }
 transport_mqtt = { package = "xmip-core-transport-mqtt", git = "https://github.com/IlleNilsson/xmip-core-transport-mqtt", branch = "main" }
 transport_nats = { package = "xmip-core-transport-nats", git = "https://github.com/IlleNilsson/xmip-core-transport-nats", branch = "main" }
