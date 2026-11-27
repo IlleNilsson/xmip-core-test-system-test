@@ -1,6 +1,6 @@
 # The Reference Environment, Xmip's one definition of an environment
 # (ADR-0028, amendment 2026-11-26), drawn in the Reference Environment deck
-# (asset/brand/presentation/Xmip-environment.pptx).
+# (asset/brand/presentation/Xmip-reference-environment.pptx).
 #
 # The cluster configuration the System Tests and the Systems Tests use: one
 # file for a run as local processes on one computer and for the same cluster
