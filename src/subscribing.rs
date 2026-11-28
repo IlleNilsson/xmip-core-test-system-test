@@ -3,7 +3,7 @@
 //!
 //! The System Tests' `RoundTrip` test runs the Xmip Applications held as
 //! sections of the Reference Environment,
-//! `configuration/cluster.xmip` — business flows an ERP runs with its Parties —
+//! `configuration/Xmip-reference-environment.xmip` — business flows an ERP runs with its Parties —
 //! each Subscription picking up one kind of document by its message type and
 //! recipient and routing it to a Send Port the send stage serves (ADR-0028,
 //! amendments 2026-10-13 and 2026-11-11). A pair is the round trip's
@@ -62,12 +62,9 @@ use xcore::{IdGenerator, MessageId, SectionId, StreamId, SystemClock, UuidV7Gene
 
 use crate::documents::{Document, Documents};
 use crate::handoff::Handoff;
+use crate::reference_environment::CLUSTER;
 use crate::roster::Roster;
 use crate::schedule::CONTRACTS;
-
-/// The Reference Environment, as this repository ships it: the
-/// `RoundTrip` Application's section.
-pub const CLUSTER: &str = include_str!("../configuration/cluster.xmip");
 
 /// A node's Subscriptions, the runtime's pickup that holds them, and the
 /// node's own Storage node.

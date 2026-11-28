@@ -27,6 +27,16 @@
 # configuration file, so `tls/node.pem` is where the environment put this
 # node's certificate, whatever machine it is on.
 
+# The short name every operator surface shows for the cluster, its tooltip
+# carrying this file's name, the cluster's name the run gives it and this
+# file (the owner, 2026-11-28: *Lets keep the file name as
+# Xmip-reference-environment, add a short name to be shown, use CRE for the
+# short name*; *The short name should be declared in the xmip file*;
+# ADR-0028, amendment 2026-11-28). It is no cluster name: the run's -Cluster
+# still names the cluster. Every node's slice carries it, signed.
+[service]
+short_name = "CRE"
+
 # Operated over gRPC at the node's address, on the operate plane's port,
 # inside Xmip's mutual TLS (ADR-0014, ADR-0063); its local endpoint,
 # xmip-<node>, always starts. The certificate is the node's, from the

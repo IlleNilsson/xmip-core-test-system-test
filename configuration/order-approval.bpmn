@@ -3,7 +3,7 @@
      approved before the ERP takes it. Each order is an Instance of its own:
      it is marked approved, a new Message generation, and published back
      through routing, where the cluster's Subscription "Approved sales
-     orders" takes it to the ERP (cluster.xmip). The unit the nodes load,
+     orders" takes it to the ERP (Xmip-reference-environment.xmip). The unit the nodes load,
      examples/order_approval.rs, is what process::generate makes of it;
      compile this design again rather than edit that file. -->
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D"

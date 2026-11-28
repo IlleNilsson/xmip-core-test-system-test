@@ -2,7 +2,7 @@
 //! Tests' and the Systems Tests' alike: each node of the run at the
 //! address of its machine as the deployed environment recorded it, or its
 //! container as `Start-XmipTest -Container` made it
-//! (`environment::machines`), at the port the cluster's own cluster.xmip
+//! (`environment::machines`), at the port the Reference Environment
 //! operates the node on, reached where that port is published in
 //! containers, every node looked up before any is asked; no name is
 //! resolved (ADR-0028, amendments 2026-11-25).
@@ -10,11 +10,11 @@
 use std::net::SocketAddr;
 
 use crate::environment::Machines;
-use crate::subscribing::CLUSTER;
+use crate::reference_environment::CLUSTER;
 
 /// Each of `names` of `cluster` where this computer reaches its operate
-/// listener in `machines`: its machine's address, at the port the cluster's
-/// own cluster.xmip operates it on, or where that port is published; every
+/// listener in `machines`: its machine's address, at the port the Reference
+/// Environment operates it on, or where that port is published; every
 /// name looked up before any node is asked.
 ///
 /// # Errors
@@ -49,7 +49,7 @@ pub(super) fn mapped(
     ))
 }
 
-/// The port the cluster's own cluster.xmip says `node` is operated on — the
+/// The port the Reference Environment says `node` is operated on — the
 /// first node it declares where `node` is none of them, or none is named —
 /// as `[operate] listen` says it, read through the configuration's own
 /// slice and reader.

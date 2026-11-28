@@ -38,8 +38,9 @@ fn source(node: &str) -> String {
 /// A roll's snapshot: the records beneath `node`, every count at the scope
 /// it was recorded at — a stage of a node, a scenario — and, when the roll
 /// has them, the communication topology under `[topology]` and what the run
-/// was started with under `[run]`. A reader sums what is beneath any scope
-/// it is asked about. Until 2026-09-26 a roll summed every kind at `node` and
+/// was started with under `[run]`; and how its cluster is named, under
+/// `[cluster]`, the Reference Environment's short name and file. A reader
+/// sums what is beneath any scope it is asked about. Until 2026-09-26 a roll summed every kind at `node` and
 /// wrote only the sums, so every surface showed a dash for every figure of
 /// every node and stage while the cluster's own file held them.
 #[must_use]
@@ -50,6 +51,7 @@ pub fn roll_toml(
     run: Option<Run>,
 ) -> String {
     Publication::whole(&source(node), node, snapshot)
+        .with_naming(Some(crate::reference_environment::naming()))
         .with_topology(topology)
         .with_run(run)
         .to_toml()

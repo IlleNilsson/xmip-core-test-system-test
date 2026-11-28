@@ -33,7 +33,7 @@ use route_content::ContentSource;
 use stream::Stream;
 use xcore::{MessageId, SectionId, StreamId};
 
-use crate::subscribing::CLUSTER;
+use crate::reference_environment::CLUSTER;
 
 /// The folder of a document no Subscription takes.
 pub const UNROUTED: &str = "unrouted";

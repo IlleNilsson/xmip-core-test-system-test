@@ -16,7 +16,7 @@ use configure::placed::{Placed, Placement};
 use xaudit::audit_store;
 use xmip_core_test_system_test::carried::{Binding, Carried, Spot};
 use xmip_core_test_system_test::external::{Externals, named, program};
-use xmip_core_test_system_test::subscribing::CLUSTER;
+use xmip_core_test_system_test::reference_environment::CLUSTER;
 
 /// The far ends' program cargo built for this program.
 fn external_binary() -> &'static Path {

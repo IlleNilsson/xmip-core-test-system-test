@@ -33,7 +33,7 @@ use crate::carried::{Arrived, Binding, Spot};
 use crate::environment::{self, Machines};
 use crate::login;
 use crate::real::RealNode;
-use crate::subscribing::CLUSTER;
+use crate::reference_environment::CLUSTER;
 
 /// How long a far end may take to answer a connection.
 const REACH: Duration = Duration::from_secs(5);

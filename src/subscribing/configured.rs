@@ -13,7 +13,7 @@ use node::{Capability, NodeRole, Scope, Stage};
 
 use configure::placed::{self, Placed};
 
-use super::CLUSTER;
+use crate::reference_environment::CLUSTER;
 use crate::roster::Roster;
 
 /// Write this node's configuration, sliced from the Reference

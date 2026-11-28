@@ -9,8 +9,8 @@
 //! The switch says which (`environment::machines`), never a name or a suite. On
 //! virtual machines and in containers every node of the cluster file is
 //! real, at the address of the machine the deployed environment recorded
-//! for it, or of the container made for it, at the port the cluster's own
-//! cluster.xmip says the node is operated on, reached where that port is
+//! for it, or of the container made for it, at the port the Reference
+//! Environment says the node is operated on, reached where that port is
 //! published in containers; a node with no
 //! machine is REFUSED, all of them in one sentence before any node is
 //! asked, and none is spawned in its place. A machine is not yet trusted:

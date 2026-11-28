@@ -12,8 +12,8 @@ use process::{DesignFormat, Program, Step};
 /// The design, as the developer drew it.
 pub const DESIGN: &str = include_str!("../configuration/order-approval.bpmn");
 
-/// Where the unit is and what it is called: the `[[modules]]` entry of
-/// `cluster.xmip` names this module, and its library is the example
+/// Where the unit is and what it is called: the `[[modules]]` entry of the
+/// Reference Environment names this module, and its library is the example
 /// `order_approval`.
 pub const ORIGIN: Origin<'static> = Origin {
     design: "order-approval.bpmn",
@@ -132,7 +132,7 @@ mod tests {
         ))
         .expect("the generated entry reads")
         .modules;
-        let cluster: toml::Table = crate::subscribing::CLUSTER.parse().expect("TOML");
+        let cluster: toml::Table = crate::reference_environment::CLUSTER.parse().expect("TOML");
         let modules = cluster["modules"].as_array().expect("[[modules]]");
         let module = modules
             .iter()

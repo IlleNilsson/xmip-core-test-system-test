@@ -83,6 +83,7 @@ pub mod parties;
 pub mod process_audit;
 pub mod publication;
 pub mod real;
+pub mod reference_environment;
 pub mod relay;
 pub mod remote;
 pub mod report;

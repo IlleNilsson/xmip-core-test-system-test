@@ -129,8 +129,10 @@ node under its `[nodes]` is one process, declaring the roles its `roles` key
 says (`Roster::of_cluster`, over `configure::cluster::roles`), and a roll told
 no file is REFUSED. `Start-XmipTest` writes the run's own file from
 `-Cluster` and the nodes `-Nodes` names, or, where it names none, every node
-of the Reference Environment, [`configuration/cluster.xmip`](configuration/cluster.xmip),
-each with the roles `-NodeRole` states or that file declares. Nothing is
+of the Reference Environment,
+[`configuration/Xmip-reference-environment.xmip`](configuration/Xmip-reference-environment.xmip),
+each with the roles `-NodeRole` states or that file declares, and with the
+short name that file declares. Nothing is
 counted or numbered (ADR-0056, amendment 2026-10-03). Where no node declares
 a stage, each runs whole tests itself, and both the roll's first line and
 `Start-XmipTest` say so.
@@ -138,8 +140,8 @@ a stage, each runs whole tests itself, and both the roll's first line and
 ### One file, simulated nodes and real ones, 2026-10-21
 
 The owner: *one TOML file that can be run for tests regardless of node
-faking or actual nodes.* `configuration/cluster.xmip` is that file, the
-Reference Environment, Xmip's one definition of an environment (ADR-0028,
+faking or actual nodes.* `configuration/Xmip-reference-environment.xmip` is
+that file, the Reference Environment, Xmip's one definition of an environment (ADR-0028,
 amendments 2026-10-21 and 2026-11-26). It declares the cluster's eleven
 nodes and their roles, as the owner's node plan of 2026-11-22 lays them out
 — RX1 to RX3 receiving,
@@ -416,7 +418,10 @@ is REFUSED with exit code 2, naming what was wrong and what would be right
 on it and which its own nodes inherit, so all three agree without being told
 twice — and `--name` must be that same word. It publishes
 `<cluster>-cluster.xmip` beside the roll's snapshot, atomically, each round,
-exactly as a node publishes its own.
+exactly as a node publishes its own. The roll's snapshot says how its cluster
+is named under `[cluster]`: the short name the Reference Environment
+declares and its file (`reference_environment::naming`; ADR-0028, amendment
+2026-11-28), which every surface shows for the cluster.
 
 Each program in `src/bin` keeps its `main`, and its parts are the library's:
 the cluster's in `cluster.rs`, the roll's in `roll.rs` (the run's nodes, as
@@ -505,8 +510,8 @@ really hold.
 
 The RoundTrip test runs the Xmip Applications held as sections of the
 Reference Environment,
-[`configuration/cluster.xmip`](configuration/cluster.xmip) (ADR-0064 and ADR-0031,
-amendments 2026-10-03): since 2026-10-13 two business flows an ERP runs with
+[`configuration/Xmip-reference-environment.xmip`](configuration/Xmip-reference-environment.xmip)
+(ADR-0064 and ADR-0031, amendments 2026-10-03): since 2026-10-13 two business flows an ERP runs with
 its Parties, order to cash and procure to pay, their Receive Locations,
 Send Ports and Subscriptions named by the documents they move and the Party
 they move them with — sales orders, purchase order responses, goods
@@ -544,7 +549,7 @@ key store in `<shared>/keys/<node>` — so it is counted as held, nothing is
 lost, and a restarted node is still paused. A resume hands on what was held,
 oldest first. The node publishes its Subscriptions with its snapshot; they
 are added and removed in the Application's section of
-`configuration/cluster.xmip`.
+`configuration/Xmip-reference-environment.xmip`.
 
 ### Every process audits, 2026-09-25
 
@@ -608,9 +613,9 @@ owner struck that too: *Rn, Pn and Sn are arbitrary node names* (ADR-0056,
 amendment). **Nowhere in Xmip is a node's name read.** A named node carries
 what `-NodeRole @{ RX1 = 'receiving' }` states for it and nothing else; a
 node given none declares none, and `Start-XmipTest` says so in words before it
-spawns anything. Omit `-Nodes` and the System Tests' own `cluster.xmip` declares
-them. What leaves PowerShell is a cluster file, `[nodes.RX1] roles =
-"receiving"` — a declaration, not a name.
+spawns anything. Omit `-Nodes` and the Reference Environment,
+`Xmip-reference-environment.xmip`, declares them. What leaves PowerShell is a cluster
+file, `[nodes.RX1] roles = "receiving"` — a declaration, not a name.
 The examples here name clusters `CL1`, `CL2` and nodes `RX1`, `PX1`, `TX1`, as the
 owner names them (ADR-0056, amendment 2026-11-12): the letters remind
 the person, and the declaration beside it is all Xmip reads.
@@ -702,7 +707,7 @@ Party's endpoints, and its evidence names that leaf's transport.
 
 The owner, watching a run: *You have not Implemented more Parties than
 Party-X. It is better, but not good enough.* The Parties are
-`configuration/cluster.xmip`'s `[[parties]]` — `Party-A` to `Party-E` as
+`configuration/Xmip-reference-environment.xmip`'s `[[parties]]` — `Party-A` to `Party-E` as
 shipped, each with its id, a UUIDv7 written once with it, and the
 certificate subject it presents as a `mutual-tls` identity for `receive`
 (the owner, 2026-10-19) — read by `configure`'s one reading of them;
@@ -864,7 +869,7 @@ and its log beside it under `.local-work/demo`, and its parts in order:
 | roll | rolls `-Cluster` from this tree at `-Stress` as `Start-XmipTest -Suite Core.System` does | the build ended, `<cluster>-snapshot.xmip` is published within ten minutes of the roll's spawn, and then every node the run record declares runs |
 | web | `Start-XmipOperationWeb` over that snapshot with `-Tester` | its address answers https with a certificate that reaches the System Tests' authority's anchor, within a minute |
 | desktop | `dotnet build` of the Desktop operations app for `net11.0-windows10.0.19041.0`; its deployed `gui.toml`, beside the executable and never the source, rewritten to `Surface = "snapshot"` and that `Snapshot` | the app stays up for a minute and declares it reads that snapshot: its process declaration's location, by the one rule both hosts declare by (ADR-0028, amendment 2026-11-21) |
-| extension | `Build-XmipService -Extension VsCode`, and `xmip-lsp` built by cargo in the extension's crate, in the estate's one workspace, whose committed `[patch]` builds every estate crate from its working tree | the VSIX and the server exist, and the server answers `initialize` over stdio with its capabilities |
+| extension | `Build-XmipService -Extension VsCode`, and `xmip-lsp` built by cargo in the extension's crate, in the estate's one workspace, whose crates depend on each other by path, each built from its working tree | the VSIX and the server exist, and the server answers `initialize` over stdio with its capabilities |
 | stop | ends its own roll, the web host and the desktop app, each only while it is still what the run started, and gives the deployed `gui.toml` back as the build deploys it | every one is stopped; one that is not is FAILED and the rest are still stopped |
 
 `web` and `desktop` are SKIPPED where the roll did not pass, with the roll's

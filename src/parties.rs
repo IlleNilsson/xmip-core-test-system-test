@@ -18,7 +18,7 @@ use configure::PartyConfiguration;
 use xcore::{PartyId, Purpose};
 
 use crate::exchange::{RoundTrip, all_transports};
-use crate::subscribing::CLUSTER;
+use crate::reference_environment::CLUSTER;
 
 /// The Parties a configuration declares, sound.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -39,7 +39,7 @@ use configure::placed::Placed;
 use configure::placed::far_ends::far_end_of;
 
 use crate::carried::{Arrived, Binding, Spot};
-use crate::subscribing::CLUSTER;
+use crate::reference_environment::CLUSTER;
 use program::{Answer, Order};
 use running::{Running, Told};
 
@@ -63,7 +63,7 @@ pub struct Named {
 
 /// The far ends the cluster file `text` names in `[environment.far_ends]`:
 /// its `senders` and its `receivers`. The System Tests' is
-/// `crate::subscribing::CLUSTER`.
+/// `crate::reference_environment::CLUSTER`.
 ///
 /// # Errors
 ///

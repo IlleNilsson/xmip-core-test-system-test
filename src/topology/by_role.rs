@@ -14,9 +14,9 @@ use observe::{Publication, Relation, Snapshot, Topology};
 
 use super::cluster_topology;
 use crate::parties::Parties;
+use crate::reference_environment::CLUSTER as FILE;
 use crate::report::roll_toml;
 use crate::roster::Roster;
-use crate::subscribing::CLUSTER as FILE;
 use crate::support::cluster_root;
 
 /// The roll's drawing of the cluster file `text`, before any traffic,

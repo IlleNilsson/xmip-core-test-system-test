@@ -12,7 +12,7 @@ use configure::placed::{self, Placed, Placement};
 use node::{Capability, NodeRole};
 
 use crate::carried::{Binding, Spot};
-use crate::subscribing::CLUSTER;
+use crate::reference_environment::CLUSTER;
 
 /// A port no one holds on loopback now.
 fn free() -> Result<u16, String> {
